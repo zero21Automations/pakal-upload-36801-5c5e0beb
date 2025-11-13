@@ -14,7 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      document_mappings: {
+        Row: {
+          created_at: string
+          demographics: Json | null
+          discipline_culture: Json | null
+          id: string
+          leadership: Json | null
+          operational_capability: Json | null
+          org_id: string
+          training_education: Json | null
+          unit_id: string
+          unit_name: string
+          updated_at: string
+          updated_by: string
+          welfare_morale: Json | null
+        }
+        Insert: {
+          created_at?: string
+          demographics?: Json | null
+          discipline_culture?: Json | null
+          id?: string
+          leadership?: Json | null
+          operational_capability?: Json | null
+          org_id: string
+          training_education?: Json | null
+          unit_id: string
+          unit_name: string
+          updated_at?: string
+          updated_by: string
+          welfare_morale?: Json | null
+        }
+        Update: {
+          created_at?: string
+          demographics?: Json | null
+          discipline_culture?: Json | null
+          id?: string
+          leadership?: Json | null
+          operational_capability?: Json | null
+          org_id?: string
+          training_education?: Json | null
+          unit_id?: string
+          unit_name?: string
+          updated_at?: string
+          updated_by?: string
+          welfare_morale?: Json | null
+        }
+        Relationships: []
+      }
+      documents: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          content_type: string | null
+          created_at: string
+          description: string | null
+          file_path: string
+          file_size: number
+          file_type: string | null
+          filename: string
+          id: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          content_type?: string | null
+          created_at?: string
+          description?: string | null
+          file_path: string
+          file_size: number
+          file_type?: string | null
+          filename: string
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          content_type?: string | null
+          created_at?: string
+          description?: string | null
+          file_path?: string
+          file_size?: number
+          file_type?: string | null
+          filename?: string
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
