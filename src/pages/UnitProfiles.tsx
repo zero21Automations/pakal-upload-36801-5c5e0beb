@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,19 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  Users, 
-  Plus, 
-  Edit,
-  Trash2,
-  Award,
-  Shield,
-  Target,
-  History,
-  Heart,
-  Trophy,
-  AlertTriangle
-} from "lucide-react";
+import { Plus, Edit, Trash2 } from "lucide-react";
 
 interface UnitProfile {
   id: string;
@@ -32,11 +19,11 @@ interface UnitProfile {
   unit_name: string;
   leadership: any;
   demographics: any;
-  capabilities: any;
-  preferences: any;
-  sensitivities: any;
-  history: any;
-  goals: any;
+  operational_capability: any;
+  training_education: any;
+  welfare_morale: any;
+  discipline_culture: any;
+  updated_by: string;
   created_at: string;
   updated_at: string;
 }
@@ -51,44 +38,12 @@ const UnitProfiles = () => {
 
   const [formData, setFormData] = useState({
     unit_name: '',
-    leadership: {
-      commander: '',
-      deputy: '',
-      sergeant_major: '',
-      contact_details: ''
-    },
-    demographics: {
-      total_soldiers: '',
-      age_range: '',
-      marital_status: '',
-      geographic_distribution: ''
-    },
-    capabilities: {
-      professional_skills: '',
-      military_experience: '',
-      special_training: '',
-      strengths: ''
-    },
-    preferences: {
-      activity_types: '',
-      group_dynamics: '',
-      learning_styles: ''
-    },
-    sensitivities: {
-      topics_to_avoid: '',
-      cultural_considerations: '',
-      past_incidents: ''
-    },
-    history: {
-      previous_activities: '',
-      success_stories: '',
-      lessons_learned: ''
-    },
-    goals: {
-      short_term: '',
-      long_term: '',
-      focus_areas: ''
-    }
+    leadership: { commander: '', deputy: '', sergeant_major: '', contact_details: '' },
+    demographics: { total_soldiers: '', age_range: '', marital_status: '', geographic_distribution: '' },
+    operational_capability: { current_level: '', training_status: '', equipment_status: '' },
+    training_education: { completed_courses: '', upcoming_training: '', certifications: '' },
+    welfare_morale: { satisfaction_level: '', concerns: '', support_programs: '' },
+    discipline_culture: { incidents: '', commendations: '', culture_notes: '' }
   });
 
   useEffect(() => {
@@ -104,7 +59,6 @@ const UnitProfiles = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
       setProfiles(data || []);
     } catch (error) {
       console.error('Error fetching profiles:', error);
@@ -120,19 +74,18 @@ const UnitProfiles = () => {
 
   const handleSaveProfile = async () => {
     try {
+      const {data: {user}} = await supabase.auth.getUser();
       const profileData = {
-        org_id: "temp-org-id", // In production, get from auth
-        unit_id: `unit-${Date.now()}`,
+        org_id: "temp-org-id",
+        unit_id: editingProfile?.unit_id || `unit-${Date.now()}`,
         unit_name: formData.unit_name,
         leadership: formData.leadership,
         demographics: formData.demographics,
-        capabilities: formData.capabilities,
-        preferences: formData.preferences,
-        sensitivities: formData.sensitivities,
-        history: formData.history,
-        goals: formData.goals,
-        created_by: "temp-user-id", // In production, get from auth
-        updated_by: "temp-user-id"
+        operational_capability: formData.operational_capability,
+        training_education: formData.training_education,
+        welfare_morale: formData.welfare_morale,
+        discipline_culture: formData.discipline_culture,
+        updated_by: user?.id || "temp-user-id"
       };
 
       let result;
@@ -174,11 +127,10 @@ const UnitProfiles = () => {
       unit_name: profile.unit_name,
       leadership: profile.leadership || {},
       demographics: profile.demographics || {},
-      capabilities: profile.capabilities || {},
-      preferences: profile.preferences || {},
-      sensitivities: profile.sensitivities || {},
-      history: profile.history || {},
-      goals: profile.goals || {}
+      operational_capability: profile.operational_capability || {},
+      training_education: profile.training_education || {},
+      welfare_morale: profile.welfare_morale || {},
+      discipline_culture: profile.discipline_culture || {}
     });
     setIsDialogOpen(true);
   };
@@ -213,11 +165,10 @@ const UnitProfiles = () => {
       unit_name: '',
       leadership: { commander: '', deputy: '', sergeant_major: '', contact_details: '' },
       demographics: { total_soldiers: '', age_range: '', marital_status: '', geographic_distribution: '' },
-      capabilities: { professional_skills: '', military_experience: '', special_training: '', strengths: '' },
-      preferences: { activity_types: '', group_dynamics: '', learning_styles: '' },
-      sensitivities: { topics_to_avoid: '', cultural_considerations: '', past_incidents: '' },
-      history: { previous_activities: '', success_stories: '', lessons_learned: '' },
-      goals: { short_term: '', long_term: '', focus_areas: '' }
+      operational_capability: { current_level: '', training_status: '', equipment_status: '' },
+      training_education: { completed_courses: '', upcoming_training: '', certifications: '' },
+      welfare_morale: { satisfaction_level: '', concerns: '', support_programs: '' },
+      discipline_culture: { incidents: '', commendations: '', culture_notes: '' }
     });
   };
 
@@ -228,349 +179,87 @@ const UnitProfiles = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6" dir="rtl">
+      <div className="container mx-auto py-8 space-y-8">
+        <div className="flex justify-between items-center">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Award className="h-8 w-8 text-primary" />
-              <h1 className="text-3xl font-bold text-foreground">מסמכי מיפוי פלוגתי</h1>
-            </div>
-            <p className="text-muted-foreground">ניהול פרופילי יחידות ופלוגות</p>
+            <h1 className="text-4xl font-bold text-foreground">מיפוי יחידות</h1>
+            <p className="text-muted-foreground mt-2">נהל מידע מפורט על יחידות המילואים</p>
           </div>
-          
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => { setEditingProfile(null); resetForm(); }}>
-                <Plus className="h-4 w-4" />
-                יצירת מיפוי חדש
+              <Button onClick={() => { setEditingProfile(null); resetForm(); }}>
+                <Plus className="ml-2 h-4 w-4" />
+                יצירת מיפוי יחידה
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" dir="rtl">
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingProfile ? 'עריכת' : 'יצירת'} מיפוי פלוגתי</DialogTitle>
-                <DialogDescription>מלא את הפרטים הרלוונטיים ליחידה</DialogDescription>
+                <DialogTitle>{editingProfile ? 'עריכת מיפוי יחידה' : 'יצירת מיפוי יחידה חדש'}</DialogTitle>
+                <DialogDescription>הזן את המידע המפורט על היחידה</DialogDescription>
               </DialogHeader>
-              
+
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="unit-name">שם היחידה</Label>
+                  <Label htmlFor="unit_name">שם היחידה</Label>
                   <Input
-                    id="unit-name"
-                    placeholder="פלוגה א', פלוגה ב' וכו'"
+                    id="unit_name"
                     value={formData.unit_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, unit_name: e.target.value }))}
                   />
                 </div>
 
-                <Tabs defaultValue="leadership" className="w-full">
-                  <TabsList className="grid w-full grid-cols-7">
-                    <TabsTrigger value="leadership">הנהגה</TabsTrigger>
+                <Tabs defaultValue="leadership" dir="rtl">
+                  <TabsList className="grid w-full grid-cols-6">
+                    <TabsTrigger value="leadership">מנהיגות</TabsTrigger>
                     <TabsTrigger value="demographics">דמוגרפיה</TabsTrigger>
-                    <TabsTrigger value="capabilities">יכולות</TabsTrigger>
-                    <TabsTrigger value="preferences">העדפות</TabsTrigger>
-                    <TabsTrigger value="sensitivities">רגישויות</TabsTrigger>
-                    <TabsTrigger value="history">היסטוריה</TabsTrigger>
-                    <TabsTrigger value="goals">יעדים</TabsTrigger>
+                    <TabsTrigger value="operational">יכולת</TabsTrigger>
+                    <TabsTrigger value="training">הכשרה</TabsTrigger>
+                    <TabsTrigger value="welfare">רווחה</TabsTrigger>
+                    <TabsTrigger value="discipline">משמעת</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="leadership" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>מפקד</Label>
-                        <Input
-                          placeholder="שם המפקד"
-                          value={formData.leadership.commander}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            leadership: { ...prev.leadership, commander: e.target.value }
-                          }))}
-                        />
-                      </div>
-                      <div>
-                        <Label>סגן מפקד</Label>
-                        <Input
-                          placeholder="שם סגן המפקד"
-                          value={formData.leadership.deputy}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            leadership: { ...prev.leadership, deputy: e.target.value }
-                          }))}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>סמל מפקד</Label>
-                      <Input
-                        placeholder="שם סמל המפקד"
-                        value={formData.leadership.sergeant_major}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          leadership: { ...prev.leadership, sergeant_major: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>פרטי יצירת קשר</Label>
-                      <Textarea
-                        placeholder="טלפונים, מיילים, קבוצת ווטסאפ"
-                        value={formData.leadership.contact_details}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          leadership: { ...prev.leadership, contact_details: e.target.value }
-                        }))}
-                      />
-                    </div>
+                    <div><Label>מפקד</Label><Input value={formData.leadership.commander} onChange={(e) => setFormData(prev => ({ ...prev, leadership: { ...prev.leadership, commander: e.target.value }}))} /></div>
+                    <div><Label>סגן מפקד</Label><Input value={formData.leadership.deputy} onChange={(e) => setFormData(prev => ({ ...prev, leadership: { ...prev.leadership, deputy: e.target.value }}))} /></div>
+                    <div><Label>רב סמל</Label><Input value={formData.leadership.sergeant_major} onChange={(e) => setFormData(prev => ({ ...prev, leadership: { ...prev.leadership, sergeant_major: e.target.value }}))} /></div>
+                    <div><Label>פרטי קשר</Label><Textarea value={formData.leadership.contact_details} onChange={(e) => setFormData(prev => ({ ...prev, leadership: { ...prev.leadership, contact_details: e.target.value }}))} /></div>
                   </TabsContent>
-                  
+
                   <TabsContent value="demographics" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>מספר חיילים</Label>
-                        <Input
-                          placeholder="40-50 חיילים"
-                          value={formData.demographics.total_soldiers}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            demographics: { ...prev.demographics, total_soldiers: e.target.value }
-                          }))}
-                        />
-                      </div>
-                      <div>
-                        <Label>טווח גילאים</Label>
-                        <Input
-                          placeholder="20-35"
-                          value={formData.demographics.age_range}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            demographics: { ...prev.demographics, age_range: e.target.value }
-                          }))}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>מצב משפחתי</Label>
-                      <Textarea
-                        placeholder="60% רווקים, 40% נשואים, רוב הורים צעירים"
-                        value={formData.demographics.marital_status}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          demographics: { ...prev.demographics, marital_status: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>פיזור גיאוגרפי</Label>
-                      <Textarea
-                        placeholder="מרכז הארץ, שפלה, ירושלים"
-                        value={formData.demographics.geographic_distribution}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          demographics: { ...prev.demographics, geographic_distribution: e.target.value }
-                        }))}
-                      />
-                    </div>
+                    <div><Label>סה״כ חיילים</Label><Input value={formData.demographics.total_soldiers} onChange={(e) => setFormData(prev => ({ ...prev, demographics: { ...prev.demographics, total_soldiers: e.target.value }}))} /></div>
+                    <div><Label>טווח גילאים</Label><Input value={formData.demographics.age_range} onChange={(e) => setFormData(prev => ({ ...prev, demographics: { ...prev.demographics, age_range: e.target.value }}))} /></div>
+                    <div><Label>מצב משפחתי</Label><Textarea value={formData.demographics.marital_status} onChange={(e) => setFormData(prev => ({ ...prev, demographics: { ...prev.demographics, marital_status: e.target.value }}))} /></div>
+                    <div><Label>התפלגות גיאוגרפית</Label><Textarea value={formData.demographics.geographic_distribution} onChange={(e) => setFormData(prev => ({ ...prev, demographics: { ...prev.demographics, geographic_distribution: e.target.value }}))} /></div>
                   </TabsContent>
-                  
-                  <TabsContent value="capabilities" className="space-y-4">
-                    <div>
-                      <Label>כישורים מקצועיים</Label>
-                      <Textarea
-                        placeholder="הנדסה, רפואה, חינוך, טכנולוגיה"
-                        value={formData.capabilities.professional_skills}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          capabilities: { ...prev.capabilities, professional_skills: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>ניסיון צבאי</Label>
-                      <Textarea
-                        placeholder="קורסים, פיקוד, לחימה"
-                        value={formData.capabilities.military_experience}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          capabilities: { ...prev.capabilities, military_experience: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>הדרכות מיוחדות</Label>
-                      <Textarea
-                        placeholder="קורסי הדרכה, הכשרות מיוחדות"
-                        value={formData.capabilities.special_training}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          capabilities: { ...prev.capabilities, special_training: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>חוזקות קבוצתיות</Label>
-                      <Textarea
-                        placeholder="לכידות גבוהה, מנהיגות טבעית, רוח צוות"
-                        value={formData.capabilities.strengths}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          capabilities: { ...prev.capabilities, strengths: e.target.value }
-                        }))}
-                      />
-                    </div>
+
+                  <TabsContent value="operational" className="space-y-4">
+                    <div><Label>רמה נוכחית</Label><Input value={formData.operational_capability.current_level} onChange={(e) => setFormData(prev => ({ ...prev, operational_capability: { ...prev.operational_capability, current_level: e.target.value }}))} /></div>
+                    <div><Label>סטטוס אימון</Label><Textarea value={formData.operational_capability.training_status} onChange={(e) => setFormData(prev => ({ ...prev, operational_capability: { ...prev.operational_capability, training_status: e.target.value }}))} /></div>
+                    <div><Label>סטטוס ציוד</Label><Textarea value={formData.operational_capability.equipment_status} onChange={(e) => setFormData(prev => ({ ...prev, operational_capability: { ...prev.operational_capability, equipment_status: e.target.value }}))} /></div>
                   </TabsContent>
-                  
-                  <TabsContent value="preferences" className="space-y-4">
-                    <div>
-                      <Label>סוגי פעילויות מועדפות</Label>
-                      <Textarea
-                        placeholder="סדנאות, פעילויות חוץ, דיונים קבוצתיים"
-                        value={formData.preferences.activity_types}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          preferences: { ...prev.preferences, activity_types: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>דינמיקה קבוצתית</Label>
-                      <Textarea
-                        placeholder="קבוצות קטנות 8-12, דיונים פתוחים"
-                        value={formData.preferences.group_dynamics}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          preferences: { ...prev.preferences, group_dynamics: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>סגנונות למידה</Label>
-                      <Textarea
-                        placeholder="למידה חווייתית, דוגמאות מעשיות"
-                        value={formData.preferences.learning_styles}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          preferences: { ...prev.preferences, learning_styles: e.target.value }
-                        }))}
-                      />
-                    </div>
+
+                  <TabsContent value="training" className="space-y-4">
+                    <div><Label>קורסים שהושלמו</Label><Textarea value={formData.training_education.completed_courses} onChange={(e) => setFormData(prev => ({ ...prev, training_education: { ...prev.training_education, completed_courses: e.target.value }}))} /></div>
+                    <div><Label>הכשרות עתידיות</Label><Textarea value={formData.training_education.upcoming_training} onChange={(e) => setFormData(prev => ({ ...prev, training_education: { ...prev.training_education, upcoming_training: e.target.value }}))} /></div>
+                    <div><Label>הסמכות</Label><Textarea value={formData.training_education.certifications} onChange={(e) => setFormData(prev => ({ ...prev, training_education: { ...prev.training_education, certifications: e.target.value }}))} /></div>
                   </TabsContent>
-                  
-                  <TabsContent value="sensitivities" className="space-y-4">
-                    <div>
-                      <Label>נושאים להימנעות</Label>
-                      <Textarea
-                        placeholder="נושאים רגישים, אירועים שליליים"
-                        value={formData.sensitivities.topics_to_avoid}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          sensitivities: { ...prev.sensitivities, topics_to_avoid: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>שיקולים תרבותיים/דתיים</Label>
-                      <Textarea
-                        placeholder="רקע דתי/חילוני, מסורות מיוחדות"
-                        value={formData.sensitivities.cultural_considerations}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          sensitivities: { ...prev.sensitivities, cultural_considerations: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>אירועי עבר פלוגתיים</Label>
-                      <Textarea
-                        placeholder="אירועים קשים, אבדות, קונפליקטים"
-                        value={formData.sensitivities.past_incidents}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          sensitivities: { ...prev.sensitivities, past_incidents: e.target.value }
-                        }))}
-                      />
-                    </div>
+
+                  <TabsContent value="welfare" className="space-y-4">
+                    <div><Label>רמת שביעות רצון</Label><Input value={formData.welfare_morale.satisfaction_level} onChange={(e) => setFormData(prev => ({ ...prev, welfare_morale: { ...prev.welfare_morale, satisfaction_level: e.target.value }}))} /></div>
+                    <div><Label>דאגות</Label><Textarea value={formData.welfare_morale.concerns} onChange={(e) => setFormData(prev => ({ ...prev, welfare_morale: { ...prev.welfare_morale, concerns: e.target.value }}))} /></div>
+                    <div><Label>תוכניות תמיכה</Label><Textarea value={formData.welfare_morale.support_programs} onChange={(e) => setFormData(prev => ({ ...prev, welfare_morale: { ...prev.welfare_morale, support_programs: e.target.value }}))} /></div>
                   </TabsContent>
-                  
-                  <TabsContent value="history" className="space-y-4">
-                    <div>
-                      <Label>פעילויות קודמות</Label>
-                      <Textarea
-                        placeholder="סדנאות, ערבי פלוגה, פעילויות גיבוש"
-                        value={formData.history.previous_activities}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          history: { ...prev.history, previous_activities: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>סיפורי הצלחה</Label>
-                      <Textarea
-                        placeholder="הישגים, פריצות דרך, שיפורים"
-                        value={formData.history.success_stories}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          history: { ...prev.history, success_stories: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>לקחים שנלמדו</Label>
-                      <Textarea
-                        placeholder="מה עבד טוב, מה פחות, המלצות לעתיד"
-                        value={formData.history.lessons_learned}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          history: { ...prev.history, lessons_learned: e.target.value }
-                        }))}
-                      />
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="goals" className="space-y-4">
-                    <div>
-                      <Label>יעדים קצרי טווח</Label>
-                      <Textarea
-                        placeholder="3-6 חודשים הקרובים"
-                        value={formData.goals.short_term}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          goals: { ...prev.goals, short_term: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>יעדים ארוכי טווח</Label>
-                      <Textarea
-                        placeholder="שנה-שנתיים"
-                        value={formData.goals.long_term}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          goals: { ...prev.goals, long_term: e.target.value }
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>תחומי התמקדות</Label>
-                      <Textarea
-                        placeholder="לכידות, מנהיגות, משמעת, רווחה"
-                        value={formData.goals.focus_areas}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          goals: { ...prev.goals, focus_areas: e.target.value }
-                        }))}
-                      />
-                    </div>
+
+                  <TabsContent value="discipline" className="space-y-4">
+                    <div><Label>אירועים</Label><Textarea value={formData.discipline_culture.incidents} onChange={(e) => setFormData(prev => ({ ...prev, discipline_culture: { ...prev.discipline_culture, incidents: e.target.value }}))} /></div>
+                    <div><Label>ציונים לשבח</Label><Textarea value={formData.discipline_culture.commendations} onChange={(e) => setFormData(prev => ({ ...prev, discipline_culture: { ...prev.discipline_culture, commendations: e.target.value }}))} /></div>
+                    <div><Label>הערות תרבות ארגונית</Label><Textarea value={formData.discipline_culture.culture_notes} onChange={(e) => setFormData(prev => ({ ...prev, discipline_culture: { ...prev.discipline_culture, culture_notes: e.target.value }}))} /></div>
                   </TabsContent>
                 </Tabs>
-                
-                <div className="flex gap-2 pt-4" dir="rtl">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    ביטול
-                  </Button>
-                  <Button onClick={handleSaveProfile} className="flex-1">
-                    {editingProfile ? 'עדכן מיפוי' : 'צור מיפוי'}
-                  </Button>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>ביטול</Button>
+                  <Button onClick={handleSaveProfile}>{editingProfile ? 'עדכן' : 'צור'}</Button>
                 </div>
               </div>
             </DialogContent>
@@ -580,95 +269,43 @@ const UnitProfiles = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                מיפויי היחידות
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="חיפוש יחידות..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-64"
-                />
-              </div>
+              <CardTitle>יחידות ממופות</CardTitle>
+              <Input placeholder="חיפוש יחידה..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="max-w-sm" />
             </div>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center py-8">טוען מיפויי יחידות...</div>
+              <p className="text-center text-muted-foreground">טוען...</p>
             ) : filteredProfiles.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            <Award className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                            <h3 className="text-lg font-medium mb-2">אין מיפויי יחידות</h3>
-                            <p className="text-sm">התחל על ידי יצירת המיפוי הראשון</p>
-                          </div>
+              <p className="text-center text-muted-foreground">אין מיפויי יחידות</p>
             ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-right">יחידה</TableHead>
-                      <TableHead className="text-right">מפקד</TableHead>
-                      <TableHead className="text-right">מספר חיילים</TableHead>
-                      <TableHead className="text-right">עדכון אחרון</TableHead>
-                      <TableHead className="text-right">פעולות</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">שם היחידה</TableHead>
+                    <TableHead className="text-right">מפקד</TableHead>
+                    <TableHead className="text-right">סה״כ חיילים</TableHead>
+                    <TableHead className="text-right">תאריך עדכון</TableHead>
+                    <TableHead className="text-right">פעולות</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProfiles.map((profile) => (
+                    <TableRow key={profile.id}>
+                      <TableCell className="font-medium">{profile.unit_name}</TableCell>
+                      <TableCell>{profile.leadership?.commander || 'לא צוין'}</TableCell>
+                      <TableCell>{profile.demographics?.total_soldiers || 'לא צוין'}</TableCell>
+                      <TableCell>{new Date(profile.updated_at).toLocaleDateString('he-IL')}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleEditProfile(profile)}><Edit className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteProfile(profile.id)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProfiles.map((profile) => (
-                      <TableRow key={profile.id}>
-                        <TableCell className="text-right">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
-                              <span className="text-xs font-semibold text-primary-foreground">
-                                {profile.unit_name.charAt(0)}
-                              </span>
-                            </div>
-                            <div>
-                              <div className="font-medium">{profile.unit_name}</div>
-                              <Badge variant="outline" className="text-xs">מיפוי פלוגתי</Badge>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-sm">
-                            {profile.leadership?.commander || 'לא צוין'}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-sm">
-                            {profile.demographics?.total_soldiers || 'לא צוין'}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(profile.updated_at).toLocaleDateString('he-IL')}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleEditProfile(profile)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDeleteProfile(profile.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>

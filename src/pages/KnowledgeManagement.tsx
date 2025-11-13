@@ -277,6 +277,10 @@ const KnowledgeManagement = () => {
   const [isKnowledgeDialogOpen, setIsKnowledgeDialogOpen] = useState(false);
   const [isSystemInsightsOpen, setIsSystemInsightsOpen] = useState(false);
   
+  // Core document editing
+  const [editingCoreDoc, setEditingCoreDoc] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState<string>('');
+  
   // Documents from Supabase - moved inside component
   const [userDocs, setUserDocs] = useState<Document[]>([]);
   const [loadingDocs, setLoadingDocs] = useState<boolean>(true);
@@ -325,10 +329,31 @@ const KnowledgeManagement = () => {
 
   // Button handlers
   const handleEdit = (id: string, title: string) => {
+    const doc = mockSystemDocs.find(d => d.id === id);
+    if (doc && doc.content) {
+      setEditingCoreDoc(id);
+      setEditedContent(doc.content);
+    }
+  };
+
+  const handleSaveCoreDoc = () => {
+    const doc = mockSystemDocs.find(d => d.id === editingCoreDoc);
     toast({
-      title: "עריכה",
-      description: `נפתח עורך המסמכים עבור "${title}"`,
+      title: "נשמר בהצלחה",
+      description: `המסמך "${doc?.title}" עודכן בהצלחה`,
     });
+    
+    if (doc) {
+      doc.content = editedContent;
+    }
+    
+    setEditingCoreDoc(null);
+    setEditedContent('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCoreDoc(null);
+    setEditedContent('');
   };
 
   const handleDownload = (id: string, title: string) => {
@@ -669,66 +694,43 @@ const KnowledgeManagement = () => {
                               </div>
                             </AccordionTrigger>
                             <AccordionContent className="pt-2" dir="rtl">
-                              <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                                 <div className="p-3 bg-muted/50 border rounded-lg">
-                                  <h4 className="font-semibold mb-2">תוכן המסמך</h4>
-                                   <div className="bg-background p-3 rounded text-sm whitespace-pre-wrap">
-                                     {doc.content || (doc.type === 'organizational' ? (
-                                       `📘 מסמך ליבה – פק״ל במילואים 2025
-
-פרק 1 – עקרונות ותהליכי עבודה של הארגון
-
-מטרת פק״ל
-פק״ל – פלוגה, קהילה, לכידות – היא תוכנית לאומית לפיתוח יחידות מילואים כקהילות מלוכדות.
-הארגון פועל מתוך תפיסה הרואה את יחידת המילואים כקהילה.
-המטרה: חיזוק הזהות, המשמעות, הקשרים והערך של השירות המילואימניקי, בצבא ובחברה האזרחית.
-
-שותפים וייחודיות
-פועל בשיתוף אכ״א, קמל״ר, בה״ד לפיתוח מנהיגות, וקרן מיראז׳ ישראל.
-צוות המנחים כולם משרתי מילואים פעילים בעלי ניסיון כפול – גם כמפקדים/חיילים, וגם כאנשי מקצוע מעולמות בניית קהילה.
-
-שלושת מישורי הפעולה המרכזיים
-1. לכידות יחידתית – הכשרת "ציר לכידות" בכל יחידה, סיוע בתכנון ויישום תוכניות חיזוק לכידות
-2. עורף משפחתי – ליווי והקמת קהילות עורף (בני/בנות זוג ומשפחות)
-3. מנהיגות מילואימניקית – מתן כלים פיקודיים ומנהיגותיים מותאמים לאתגרים הייחודיים
-
-פרק 4 – היררכיית הידע
-רמה 1 – תוכן ייחודי לפק״ל: אוגדנים, חזון, מדריכים מקוריים (עדיפות מוחלטת)
-רמה 2 – כלים והדרכות: כרטיסיות פעילות, מדריכי הכשרה, נהלים
-רמה 3 – העמקה ומחקר: מקורות חיצוניים להרחבת הקשר בלבד
-
-עקרון נימוקים: כל תשובה כוללת סימון מקור והרמה`
-                                     ) : (
-                                       `🗂️ מסמך מיפוי יחידתי - ${doc.unitName}
-
-אוגדן מידע מפורט להבנה עמוקה של ${doc.unitName}
-
-1. פרטי זיהוי בסיסיים
-זיהוי היחידה, אנשי קשר עיקריים, פרטי תקשורת
-
-2. מבנה כוח האדם  
-מספר חיילים, חלוקה לדרגות ותפקידים, מבנה מחלקות וצוותים
-
-3. פרופיל חברתי־קהילתי
-גילאי החיילים, מצב משפחתי, אזורי מגורים, רמת הכרות בין החיילים
-
-4. מאפיינים אישיים חשובים
-העדפות פעילות, צרכים מיוחדים, נקודות רגישות שיש להתחשב בהן
-
-5. כישורים ויכולות
-מקצועות אזרחיים, ניסיון צבאי, חוזקות קבוצתיות ייחודיות
-
-6. היסטוריית פעילות
-אירועי גיבוש קודמים, פעילויות פק״ל שנעשו, הצלחות ואתגרים מהעבר
-
-7. תובנות ויעדים
-רמת לכידות נוכחית, יעדים לפעילות קרובה, נושאים מומלצים לטיפול
-
-🎯 מטרת המסמך: לאפשר למנחי ומלווי פק״ל להבין את ${doc.unitName} ברמה עמוקה 
-ולהתאים פעילויות וסדנאות לצורכי היחידה הספציפיים`
-                                     ))}
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h4 className="font-semibold">תוכן המסמך</h4>
+                                    {editingCoreDoc === doc.id ? (
+                                      <div className="flex gap-2">
+                                        <Button size="sm" onClick={handleSaveCoreDoc}>
+                                          <CheckCircle className="h-4 w-4 ml-1" />
+                                          שמור
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                                          <XCircle className="h-4 w-4 ml-1" />
+                                          ביטול
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={() => handleEdit(doc.id, doc.title)}
+                                      >
+                                        <Edit className="h-4 w-4 ml-1" />
+                                        ערוך תוכן
+                                      </Button>
+                                    )}
                                   </div>
-                                </div>
+                                  {editingCoreDoc === doc.id ? (
+                                    <Textarea
+                                      value={editedContent}
+                                      onChange={(e) => setEditedContent(e.target.value)}
+                                      className="min-h-[400px] font-mono text-sm"
+                                      dir="rtl"
+                                    />
+                                  ) : (
+                                     <div className="bg-background p-3 rounded text-sm whitespace-pre-wrap">{doc.content}</div>
+                                   )}
+                                 </div>
                               </div>
                             </AccordionContent>
                           </AccordionItem>
