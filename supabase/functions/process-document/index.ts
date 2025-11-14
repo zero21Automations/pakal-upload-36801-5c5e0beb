@@ -71,7 +71,7 @@ serve(async (req) => {
       }
     } catch (extractionError) {
       console.error('Text extraction failed:', extractionError);
-      throw new Error(`Failed to extract text from ${document.file_type} file: ${extractionError.message}`);
+      throw new Error(`Failed to extract text from ${document.file_type} file: ${extractionError instanceof Error ? extractionError.message : String(extractionError)}`);
     }
 
     if (!content || content.trim().length < 10) {
@@ -154,7 +154,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
         console.error(`Classification attempt ${classificationAttempts} failed:`, classificationError);
         
         if (classificationAttempts >= maxAttempts) {
-          throw new Error(`AI classification failed after ${maxAttempts} attempts: ${classificationError.message}`);
+          throw new Error(`AI classification failed after ${maxAttempts} attempts: ${classificationError instanceof Error ? classificationError.message : String(classificationError)}`);
         }
         
         // Wait before retry
@@ -172,7 +172,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
     // Process embeddings in very small batches to avoid memory issues
     const batchSize = 15; // Even smaller batch size
-    const allEmbeddings = [];
+    const allEmbeddings: Array<{ embedding: number[]; index: number }> = [];
     
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
@@ -209,7 +209,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           console.error(`Embedding attempt ${embeddingAttempts} failed:`, embeddingError);
           
           if (embeddingAttempts >= maxEmbeddingAttempts) {
-            throw new Error(`Embedding generation failed after ${maxEmbeddingAttempts} attempts: ${embeddingError.message}`);
+            throw new Error(`Embedding generation failed after ${maxEmbeddingAttempts} attempts: ${embeddingError instanceof Error ? embeddingError.message : String(embeddingError)}`);
           }
           
           // Wait before retry
@@ -303,7 +303,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
   } catch (error) {
     console.error('Error processing document:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

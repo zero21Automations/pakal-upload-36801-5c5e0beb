@@ -245,8 +245,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'RAG search failed', 
-        details: error.message,
-        stack: error.stack 
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined 
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

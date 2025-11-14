@@ -79,7 +79,7 @@ serve(async (req) => {
         
       } catch (error) {
         results.failed++;
-        const errorMsg = `Failed to process ${document.filename}: ${error.message}`;
+        const errorMsg = `Failed to process ${document.filename}: ${error instanceof Error ? error.message : String(error)}`;
         results.errors.push(errorMsg);
         console.error(errorMsg);
       }
@@ -99,7 +99,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in reprocess-documents function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
