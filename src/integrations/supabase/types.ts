@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      core_documents: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: []
+      }
       document_mappings: {
         Row: {
           created_at: string
@@ -69,6 +99,8 @@ export type Database = {
           content_type: string | null
           created_at: string
           description: string | null
+          document_level: string | null
+          document_type: string | null
           file_path: string
           file_size: number
           file_type: string | null
@@ -85,6 +117,8 @@ export type Database = {
           content_type?: string | null
           created_at?: string
           description?: string | null
+          document_level?: string | null
+          document_type?: string | null
           file_path: string
           file_size: number
           file_type?: string | null
@@ -101,6 +135,8 @@ export type Database = {
           content_type?: string | null
           created_at?: string
           description?: string | null
+          document_level?: string | null
+          document_type?: string | null
           file_path?: string
           file_size?: number
           file_type?: string | null
