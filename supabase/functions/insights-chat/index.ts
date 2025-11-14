@@ -64,16 +64,23 @@ serve(async (req) => {
         console.warn('RAG search failed, proceeding without context');
       }
     } catch (ragError) {
-      console.warn('RAG search error:', ragError.message);
+      console.warn('RAG search error:', ragError instanceof Error ? ragError.message : String(ragError));
     }
 
     // Build context from search results
     let contextText = '';
-    let citations = [];
+    let citations: Array<{
+      source_id: string;
+      chunk_id: string;
+      title: string;
+      level: number;
+      confidence: number;
+      excerpt: string;
+    }> = [];
     
     if (searchResults.length > 0) {
       contextText = '\n\nמידע רלוונטי מהמערכת:\n\n';
-      searchResults.forEach((result, index) => {
+      searchResults.forEach((result: any, index: number) => {
         const levelBadge = `L${result.level}`;
         contextText += `[${levelBadge}] ${result.source_title}\n${result.content}\n\n`;
         citations.push({
@@ -134,13 +141,14 @@ serve(async (req) => {
 חובה לצטט מקורות כאשר זמינים. ענה בעברית, בצורה מקצועית וממוקדת.`;
 
       if (searchResults.length > 0) {
+        const metadata = searchMetadata as any;
         systemPrompt += `\n\nסטטיסטיקות חיפוש:
-- נמצאו ${searchMetadata.total_found || 0} תוצאות רלוונטיות
+- נמצאו ${metadata.total_found || 0} תוצאות רלוונטיות
 - מוצגות ${searchResults.length} תוצאות מובילות
-- רמה 1: ${searchMetadata.level_distribution?.L1 || 0} מסמכים
-- רמה 2: ${searchMetadata.level_distribution?.L2 || 0} מסמכים  
-- רמה 3: ${searchMetadata.level_distribution?.L3 || 0} מסמכים
-- יש תוכן L1: ${searchMetadata.has_l1_content ? 'כן' : 'לא'}`;
+- רמה 1: ${metadata.level_distribution?.L1 || 0} מסמכים
+- רמה 2: ${metadata.level_distribution?.L2 || 0} מסמכים  
+- רמה 3: ${metadata.level_distribution?.L3 || 0} מסמכים
+- יש תוכן L1: ${metadata.has_l1_content ? 'כן' : 'לא'}`;
       } else {
         systemPrompt += '\n\nשים לב: לא נמצא תוכן רלוונטי במערכת לשאלה זו. ספק תשובה כללית מבוססת ידע מקצועי.';
       }
@@ -212,7 +220,7 @@ serve(async (req) => {
         console.log(`Stored ${citations.length} citations for turn ${chatTurnId}`);
       }
     } catch (dbError) {
-      console.warn('Failed to store chat turn/citations:', dbError.message);
+      console.warn('Failed to store chat turn/citations:', dbError instanceof Error ? dbError.message : String(dbError));
       // Don't fail the request if DB storage fails
     }
 
@@ -225,7 +233,7 @@ serve(async (req) => {
           model: 'gpt-4o-mini',
           mode,
           search_results_count: searchResults.length,
-          has_l1_content: searchMetadata.has_l1_content || false,
+          has_l1_content: (searchMetadata as any).has_l1_content || false,
           turn_id: chatTurnId,
           timestamp: new Date().toISOString(),
           ...searchMetadata
@@ -237,7 +245,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in insights chat:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
