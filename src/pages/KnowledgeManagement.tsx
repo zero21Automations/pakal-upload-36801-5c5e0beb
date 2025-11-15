@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SystemInsightsWindow } from "@/components/SystemInsightsWindow";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,10 +15,14 @@ import {
   CheckCircle, 
   XCircle, 
   BookOpen,
-  Plus
+  Plus,
+  Search,
+  Download,
+  Filter
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import jsPDF from "jspdf";
 import {
   Dialog,
   DialogContent,
@@ -89,6 +93,8 @@ export default function KnowledgeManagement() {
   const [editingTerm, setEditingTerm] = useState<PakalTerm | null>(null);
   const [newTerm, setNewTerm] = useState({ term: "", definition: "", category: "" });
   const [savingTerm, setSavingTerm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
 
   // System insights state
   const [isSystemInsightsOpen, setIsSystemInsightsOpen] = useState(false);
@@ -455,6 +461,106 @@ export default function KnowledgeManagement() {
     }
   };
 
+  // Get unique categories from terms
+  const categories = useMemo(() => {
+    const uniqueCategories = new Set(
+      pakalTerms
+        .map(term => term.category)
+        .filter((cat): cat is string => cat !== null && cat.trim() !== '')
+    );
+    return Array.from(uniqueCategories).sort();
+  }, [pakalTerms]);
+
+  // Filter terms based on search and category
+  const filteredTerms = useMemo(() => {
+    return pakalTerms.filter(term => {
+      const matchesSearch = searchTerm === "" || 
+        term.term.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        term.definition.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCategory = filterCategory === "all" || 
+        term.category === filterCategory;
+      
+      return matchesSearch && matchesCategory;
+    });
+  }, [pakalTerms, searchTerm, filterCategory]);
+
+  // Export to CSV/Excel
+  const handleExportExcel = () => {
+    const headers = ["מונח", "הגדרה", "קטגוריה"];
+    const rows = filteredTerms.map(term => [
+      term.term,
+      term.definition,
+      term.category || ""
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `מילון_שפת_פקל_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+
+    toast({
+      title: "יוצא בהצלחה",
+      description: "המילון יוצא לקובץ Excel",
+    });
+  };
+
+  // Export to PDF
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    
+    // Add Hebrew font support (using default font, limited Hebrew support)
+    doc.setFont("helvetica");
+    doc.setFontSize(16);
+    doc.text("Pakal Dictionary", 105, 15, { align: "center" });
+    
+    doc.setFontSize(10);
+    let yPosition = 30;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 20;
+
+    filteredTerms.forEach((term, index) => {
+      // Check if we need a new page
+      if (yPosition > pageHeight - 40) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      // Term title
+      doc.setFont("helvetica", "bold");
+      doc.text(`${index + 1}. ${term.term}`, margin, yPosition);
+      yPosition += 7;
+
+      // Category
+      if (term.category) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(9);
+        doc.text(`Category: ${term.category}`, margin + 5, yPosition);
+        yPosition += 6;
+      }
+
+      // Definition
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const lines = doc.splitTextToSize(term.definition, 170);
+      doc.text(lines, margin + 5, yPosition);
+      yPosition += lines.length * 5 + 10;
+    });
+
+    doc.save(`pakal_dictionary_${new Date().toISOString().split('T')[0]}.pdf`);
+
+    toast({
+      title: "יוצא בהצלחה",
+      description: "המילון יוצא לקובץ PDF",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -646,6 +752,15 @@ export default function KnowledgeManagement() {
                       </div>
                     </DialogContent>
                   </Dialog>
+                  <Button variant="outline" onClick={handleExportExcel}>
+                    <Download className="h-4 w-4 ml-1" />
+                    Excel
+                  </Button>
+                  <Button variant="outline" onClick={handleExportPDF}>
+                    <Download className="h-4 w-4 ml-1" />
+                    PDF
+                  </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -697,13 +812,14 @@ export default function KnowledgeManagement() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>מילון שפת פק״ל</CardTitle>
-                  <Dialog open={isAddTermDialogOpen} onOpenChange={setIsAddTermDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="h-4 w-4 ml-1" />
-                        הוסף מונח
-                      </Button>
-                    </DialogTrigger>
+                  <div className="flex gap-2">
+                    <Dialog open={isAddTermDialogOpen} onOpenChange={setIsAddTermDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="h-4 w-4 ml-1" />
+                          הוסף מונח
+                        </Button>
+                      </DialogTrigger>
                     <DialogContent dir="rtl">
                       <DialogHeader>
                         <DialogTitle>הוספת מונח חדש</DialogTitle>
@@ -767,9 +883,14 @@ export default function KnowledgeManagement() {
                     <BookOpen className="h-16 w-16 mx-auto mb-4 opacity-30" />
                     <p>אין מונחים במילון. לחץ על "הוסף מונח" כדי להתחיל.</p>
                   </div>
+                ) : filteredTerms.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Search className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                    <p>לא נמצאו מונחים תואמים לחיפוש.</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
-                    {pakalTerms.map((term) => (
+                    {filteredTerms.map((term) => (
                       <div
                         key={term.id}
                         className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors"
