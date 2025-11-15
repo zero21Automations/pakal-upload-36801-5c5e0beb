@@ -343,8 +343,23 @@ export default function KnowledgeManagement() {
 
     setUploadingCore(true);
     try {
-      // Read file content
-      const text = await coreDocFile.text();
+      // Extract text content using preview-document function
+      const formData = new FormData();
+      formData.append('file', coreDocFile);
+      
+      const { data: previewData, error: previewError } = await supabase.functions.invoke('preview-document', {
+        body: formData
+      });
+      
+      if (previewError || !previewData?.fullContent) {
+        throw new Error('Failed to extract text from file');
+      }
+      
+      const text = previewData.fullContent;
+      
+      if (!text || text.trim().length < 10) {
+        throw new Error('No meaningful content extracted from file');
+      }
       
       let coreDocId = coreDoc?.id;
       
@@ -386,7 +401,6 @@ export default function KnowledgeManagement() {
           console.log('Core document processing triggered');
         } catch (procError) {
           console.error('Error triggering processing:', procError);
-          // Don't fail the upload if processing fails
         }
       }
 
@@ -402,7 +416,7 @@ export default function KnowledgeManagement() {
       console.error('Error uploading core document:', error);
       toast({
         title: "שגיאה",
-        description: "לא ניתן להעלות את מסמך הליבה",
+        description: error instanceof Error ? error.message : "לא ניתן להעלות את מסמך הליבה",
         variant: "destructive",
       });
     } finally {
@@ -727,8 +741,15 @@ export default function KnowledgeManagement() {
 
     setUploadingContent(true);
     try {
+      // Sanitize filename to remove Hebrew characters and special characters
+      const sanitizedFilename = contentDocFile.name
+        .replace(/[^\w\s.-]/gi, '') // Remove non-ASCII characters
+        .replace(/\s+/g, '_') // Replace spaces with underscores
+        .replace(/_{2,}/g, '_'); // Replace multiple underscores with single
+      
+      const filePath = `${user.id}/${Date.now()}_${sanitizedFilename}`;
+      
       // Upload file to storage
-      const filePath = `${user.id}/${Date.now()}_${contentDocFile.name}`;
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, contentDocFile);
@@ -781,7 +802,7 @@ export default function KnowledgeManagement() {
       console.error('Error uploading content document:', error);
       toast({
         title: "שגיאה",
-        description: "לא ניתן להעלות את מסמך התוכן",
+        description: error instanceof Error ? error.message : "לא ניתן להעלות את מסמך התוכן",
         variant: "destructive",
       });
     } finally {
