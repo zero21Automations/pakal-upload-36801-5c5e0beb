@@ -57,11 +57,11 @@ const Chat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
-      content: 'שלום! אני העוזר הדיגיטלי של מערכת פק״ל. אני כאן לעזור לך עם תובנות על המערכת, ניתוח פערי ידע, ובחינת השפעת שינויים. איך אני יכול לעזור?',
+      content: 'שלום! אני העוזר הדיגיטלי של מערכת הידע של פק״ל.\n\nאני יכול לענות על שאלות בהתבסס על המסמכים והתוכן שהועלו למערכת.\n\nהמערכת כוללת:\n• מסמך ליבה (רמה 0) - התוכן הרשמי של פק״ל\n• תוכן L1 - תוכן ליבה נוסף\n• תוכן L2 - כלים והדרכות מעשיות\n• תוכן L3 - מחקרים והקשר רחב\n\nאיך אני יכול לעזור לך היום?',
       isUser: false,
       timestamp: new Date(),
       metadata: {
-        mode: 'insights'
+        mode: 'knowledge'
       }
     }
   ]);
@@ -120,7 +120,7 @@ const Chat = () => {
             message: messageContent,
             org_id: 'temp-org-id',
             unit_id: 'temp-unit-id',
-            mode: 'insights'
+            mode: 'knowledge'
           }),
         }
       );
