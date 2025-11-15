@@ -688,6 +688,18 @@ export default function KnowledgeManagement() {
     if (!coreDoc || !window.confirm('האם אתה בטוח שברצונך למחוק את מסמך הליבה?')) return;
 
     try {
+      // First delete all associated chunks
+      const { error: chunksError } = await supabase
+        .from('chunks')
+        .delete()
+        .eq('source_id', coreDoc.id)
+        .eq('source_type', 'core_document');
+
+      if (chunksError) {
+        console.error('Error deleting chunks:', chunksError);
+      }
+
+      // Then delete the core document
       const { error } = await supabase
         .from('core_documents')
         .delete()
