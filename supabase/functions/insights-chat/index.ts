@@ -99,117 +99,49 @@ serve(async (req) => {
       });
     }
 
-    // Analyze query type for specialized insights
-    const analysisType = analyzeQueryType(message);
-    let systemPrompt = '';
-    let assistantMessage = '';
+    // Use knowledge-based RAG chat with streaming
+    const systemPrompt = `אתה עוזר דיגיטלי מומחה במערכת הידע של פק״ל (פיתוח כוח לכידות).
 
-    // Check if we should use specialized analysis (non-streaming)
-    const useSpecializedAnalysis = analysisType !== 'generic' && searchResults.length === 0;
+תפקידך: לענות על שאלות בצורה מדויקת ומקצועית על בסיס המידע ממאגר הידע של פק״ל.
 
-    if (useSpecializedAnalysis) {
-      // Use specialized analysis functions for system insights
-      switch (analysisType) {
-        case 'gap_analysis':
-          assistantMessage = await performGapAnalysis(supabaseClient);
-          break;
-        case 'usage_analysis':
-          assistantMessage = await performUsageAnalysis(supabaseClient, org_id);
-          break;
-        case 'approval_impact':
-          assistantMessage = await performApprovalImpact(supabaseClient, org_id);
-          break;
-        case 'conflict_detection':
-          assistantMessage = await performConflictDetection(supabaseClient, org_id);
-          break;
-        case 'improvement_plan':
-          assistantMessage = await performImprovementPlan(supabaseClient, org_id);
-          break;
-        default:
-          assistantMessage = await generateGenericInsight(supabaseClient, message, org_id);
-      }
+היררכיית מקורות (סדר עדיפות):
+1. **רמה 0 (מסמך ליבה)** - תוכן הליבה הרשמי של פק״ל - זוהי המקור הסמכותי ביותר
+2. **רמה 1 (L1)** - תוכן ליבה נוסף - עדיפות גבוהה מאוד
+3. **רמה 2 (L2)** - כלים והדרכות מעשיות - עדיפות בינונית
+4. **רמה 3 (L3)** - מחקרים והקשר רחב - תוספת עומק
 
-      // For non-streaming responses (specialized analysis functions)
-      const chatTurnId = `chat_${new Date().toISOString().split('T')[0]}_${Math.random().toString(36).substr(2, 4)}`;
-      
-      try {
-        await supabaseClient.from('chat_turns').insert({
-          id: chatTurnId,
-          org_id,
-          unit_id,
-          user_id: org_id,
-          question: message,
-          answer: assistantMessage,
-          mode,
-          retrieval_meta: searchMetadata
-        });
+עקרונות מנחים:
+- ענה **רק** על בסיס המידע שסופק לך מהמערכת
+- צטט תמיד את המקורות ורמת הידע שלהם
+- אם יש מספר מקורות ברמות שונות - העדף את הרמה הגבוהה יותר
+- אם אין מידע רלוונטי במערכת - אמור זאת בבירור
+- השתמש בשפה ברורה, ישירה ומקצועית
+- הדגש את הנקודות המעשיות והישימות
+- אם יש סתירה בין מקורות - ציין זאת והעדף את הרמה הגבוהה יותר
 
-        if (citations.length > 0) {
-          const citationInserts = citations.map(citation => ({
-            turn_id: chatTurnId,
-            source_id: citation.source_id,
-            chunk_id: citation.chunk_id,
-            level: citation.level,
-            confidence: citation.confidence,
-            excerpt: citation.excerpt
-          }));
 
-          await supabaseClient.from('citations').insert(citationInserts);
-        }
-      } catch (dbError) {
-        console.warn('Failed to store chat turn/citations:', dbError instanceof Error ? dbError.message : String(dbError));
-      }
+מבנה תשובה מומלץ:
+1. תשובה ישירה לשאלה
+2. ציטוט מקורות (כולל רמת הידע)
+3. פרטים נוספים או דוגמאות מהמקורות (אם רלוונטי)
+4. המלצות מעשיות (אם רלוונטי)`;
 
-      return new Response(
-        JSON.stringify({
-          answer: assistantMessage,
-          citations,
-          query_type: analysisType,
-          metadata: {
-            model: 'google/gemini-2.5-flash',
-            mode,
-            search_results_count: searchResults.length,
-            has_l1_content: (searchMetadata as any).has_l1_content || false,
-            turn_id: chatTurnId,
-            timestamp: new Date().toISOString(),
-            ...searchMetadata
-          }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    let contextInfo = '';
+    if (searchResults.length > 0) {
+      const metadata = searchMetadata as any;
+      contextInfo = `
 
-    // Use RAG-powered chat with streaming
-    systemPrompt = `אתה עוזר דיגיטלי מתקדם עבור מערכת ידע פק״ל (פיתוח כוח לכידות).
-
-מצב פעילות: ${mode === 'insights' ? 'תובנות מנהל' : mode}
-
-היכולות שלך כוללות:
-- ניתוח מסמכים וזיהוי פערי ידע
-- המלצות על שיפור תהליכי אישור  
-- ניתוח דפוסי שימוש במערכת
-- זיהוי מסמכים שלא בשימוש או מיושנים
-- הצעות לשיפור ארגון הידע
-
-היררכיית ידע:
-- רמה 1 (L1): תוכן ליבה של פק״ל - עדיפות גבוהה
-- רמה 2 (L2): כלים והדרכות - עדיפות בינונית  
-- רמה 3 (L3): מחקרים והקשר - תוספת עומק
-
-חובה לצטט מקורות כאשר זמינים. ענה בעברית, בצורה מקצועית וממוקדת.`;
-
-      if (searchResults.length > 0) {
-        const metadata = searchMetadata as any;
-        systemPrompt += `\n\nסטטיסטיקות חיפוש:
+מידע על החיפוש:
 - נמצאו ${metadata.total_found || 0} תוצאות רלוונטיות
 - מוצגות ${searchResults.length} תוצאות מובילות
-- רמה 1: ${metadata.level_distribution?.L1 || 0} מסמכים
-- רמה 2: ${metadata.level_distribution?.L2 || 0} מסמכים  
-- רמה 3: ${metadata.level_distribution?.L3 || 0} מסמכים
-- יש תוכן L1: ${metadata.has_l1_content ? 'כן' : 'לא'}`;
-      } else {
-        systemPrompt += '\n\nשים לב: לא נמצא תוכן רלוונטי במערכת לשאלה זו. ספק תשובה כללית מבוססת ידע מקצועי.';
-      }
+- התפלגות לפי רמות: L0/Core: ${metadata.level_distribution?.L0 || 0}, L1: ${metadata.level_distribution?.L1 || 0}, L2: ${metadata.level_distribution?.L2 || 0}, L3: ${metadata.level_distribution?.L3 || 0}
+- כולל תוכן ליבה (L0/L1): ${metadata.has_l1_content ? 'כן' : 'לא'}`;
+    } else {
+      contextInfo = `
+
+⚠️ חשוב: לא נמצא מידע רלוונטי במאגר הידע לשאלה זו.
+אנא הודע למשתמש בבירור שאין מידע במערכת על הנושא הזה, ואל תמציא מידע.`;
+    }
 
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -222,11 +154,11 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: systemPrompt
+              content: systemPrompt + contextInfo
             },
             {
               role: 'user',
-              content: message + contextText
+              content: `שאלת המשתמש: ${message}${contextText ? '\n\n' + contextText : ''}`
             }
           ],
           max_tokens: 1000,
@@ -292,7 +224,6 @@ serve(async (req) => {
             }
 
             // Store in database after streaming completes
-            assistantMessage = fullMessage;
             const chatTurnId = `chat_${new Date().toISOString().split('T')[0]}_${Math.random().toString(36).substr(2, 4)}`;
             
             await supabaseClient.from('chat_turns').insert({
@@ -301,7 +232,7 @@ serve(async (req) => {
               unit_id,
               user_id: org_id,
               question: message,
-              answer: assistantMessage,
+              answer: fullMessage,
               mode,
               retrieval_meta: searchMetadata
             });
