@@ -33,12 +33,27 @@ serve(async (req) => {
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
       } else if (fileType === 'pdf') {
-        // Use pdf-parse for PDF files
-        const pdfParse = await import('https://esm.sh/pdf-parse@1.1.1');
+        // Use pdfjs-dist for PDF files (Deno-compatible)
+        const pdfjsLib = await import('https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs');
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
-        const result = await pdfParse.default(buffer);
-        content = result.text;
+        
+        // Load the PDF document
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        
+        // Extract text from all pages
+        const textPromises = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          textPromises.push(
+            pdf.getPage(i).then(async (page: any) => {
+              const textContent = await page.getTextContent();
+              return textContent.items.map((item: any) => item.str).join(' ');
+            })
+          );
+        }
+        
+        const pageTexts = await Promise.all(textPromises);
+        content = pageTexts.join('\n\n');
       } else {
         // Fallback for text files
         content = await file.text();
