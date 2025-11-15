@@ -84,6 +84,8 @@ export default function KnowledgeManagement() {
   const [contentDocFile, setContentDocFile] = useState<File | null>(null);
   const [contentDocLevel, setContentDocLevel] = useState<string>("L1");
   const [uploadingContent, setUploadingContent] = useState(false);
+  const [isEditContentDialogOpen, setIsEditContentDialogOpen] = useState(false);
+  const [editingContentDoc, setEditingContentDoc] = useState<ContentDocument | null>(null);
 
   // Pakal terms state
   const [pakalTerms, setPakalTerms] = useState<PakalTerm[]>([]);
@@ -461,6 +463,65 @@ export default function KnowledgeManagement() {
     }
   };
 
+  const handleEditContentDoc = async () => {
+    if (!editingContentDoc || !user) return;
+
+    setSavingTerm(true);
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({
+          title: editingContentDoc.title,
+          document_level: editingContentDoc.document_level,
+          status: editingContentDoc.status,
+        })
+        .eq('id', editingContentDoc.id);
+
+      if (error) throw error;
+
+      setContentDocs(contentDocs.map(doc => 
+        doc.id === editingContentDoc.id ? editingContentDoc : doc
+      ));
+      setIsEditContentDialogOpen(false);
+      setEditingContentDoc(null);
+      toast({
+        title: "המסמך עודכן בהצלחה",
+      });
+    } catch (error) {
+      console.error('Error updating content document:', error);
+      toast({
+        title: "שגיאה בעדכון המסמך",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTerm(false);
+    }
+  };
+
+  const handleDeleteContentDoc = async (docId: string) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק מסמך זה?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', docId);
+
+      if (error) throw error;
+
+      setContentDocs(contentDocs.filter(d => d.id !== docId));
+      toast({
+        title: "המסמך נמחק בהצלחה",
+      });
+    } catch (error) {
+      console.error('Error deleting content document:', error);
+      toast({
+        title: "שגיאה במחיקת המסמך",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Get unique categories from terms
   const categories = useMemo(() => {
     const uniqueCategories = new Set(
@@ -796,9 +857,28 @@ export default function KnowledgeManagement() {
                             </div>
                           </div>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(doc.created_at).toLocaleDateString('he-IL')}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(doc.created_at).toLocaleDateString('he-IL')}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingContentDoc(doc);
+                              setIsEditContentDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteContentDoc(doc.id)}
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -972,6 +1052,79 @@ export default function KnowledgeManagement() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Content Document Dialog */}
+      <Dialog open={isEditContentDialogOpen} onOpenChange={setIsEditContentDialogOpen}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>עריכת מסמך תוכן</DialogTitle>
+            <DialogDescription>
+              ערוך את פרטי מסמך התוכן
+            </DialogDescription>
+          </DialogHeader>
+          {editingContentDoc && (
+            <div className="space-y-4 pt-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">כותרת</label>
+                <Input
+                  value={editingContentDoc.title}
+                  onChange={(e) => setEditingContentDoc({ ...editingContentDoc, title: e.target.value })}
+                  dir="rtl"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">רמת ידע</label>
+                <Select 
+                  value={editingContentDoc.document_level || ""} 
+                  onValueChange={(value) => setEditingContentDoc({ ...editingContentDoc, document_level: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="L1">L1 - מסמכי ליבה פק"לים</SelectItem>
+                    <SelectItem value="L2">L2 - כלים ופעילויות</SelectItem>
+                    <SelectItem value="L3">L3 - מחקר והרחבה</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">סטטוס</label>
+                <Select 
+                  value={editingContentDoc.status} 
+                  onValueChange={(value) => setEditingContentDoc({ ...editingContentDoc, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ממתין לאישור">ממתין לאישור</SelectItem>
+                    <SelectItem value="מאושר">מאושר</SelectItem>
+                    <SelectItem value="נדחה">נדחה</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditContentDialogOpen(false);
+                    setEditingContentDoc(null);
+                  }}
+                >
+                  ביטול
+                </Button>
+                <Button
+                  onClick={handleEditContentDoc}
+                  disabled={savingTerm}
+                >
+                  {savingTerm ? "שומר..." : "שמור"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Term Dialog */}
       <Dialog open={isEditTermDialogOpen} onOpenChange={setIsEditTermDialogOpen}>
