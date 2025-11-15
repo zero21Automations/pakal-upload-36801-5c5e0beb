@@ -699,6 +699,7 @@ export default function KnowledgeManagement() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>מסמכי תוכן</CardTitle>
+                  <div className="flex gap-2">
                   <Dialog open={isUploadContentDialogOpen} onOpenChange={setIsUploadContentDialogOpen}>
                     <DialogTrigger asChild>
                       <Button>
@@ -873,9 +874,46 @@ export default function KnowledgeManagement() {
                       </div>
                     </DialogContent>
                   </Dialog>
+                  <Button variant="outline" onClick={handleExportExcel}>
+                    <Download className="h-4 w-4 ml-1" />
+                    Excel
+                  </Button>
+                  <Button variant="outline" onClick={handleExportPDF}>
+                    <Download className="h-4 w-4 ml-1" />
+                    PDF
+                  </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Search and Filter Controls */}
+                <div className="flex gap-3 mb-6">
+                  <div className="flex-1 relative">
+                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="חיפוש מונח או הגדרה..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pr-10"
+                      dir="rtl"
+                    />
+                  </div>
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger className="w-[200px]">
+                      <Filter className="h-4 w-4 ml-2" />
+                      <SelectValue placeholder="סינון לפי קטגוריה" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">כל הקטגוריות</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {loadingTerms ? (
                   <div className="text-center py-8 text-muted-foreground">טוען...</div>
                 ) : pakalTerms.length === 0 ? (
