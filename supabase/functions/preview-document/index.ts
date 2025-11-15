@@ -102,6 +102,7 @@ serve(async (req) => {
         fileType: fileType || 'unknown',
         fileSize: file.size,
         contentPreview,
+        fullContent: content, // Include full content for core document uploads
         stats,
         sampleChunks,
         fullContentLength: content.length,
