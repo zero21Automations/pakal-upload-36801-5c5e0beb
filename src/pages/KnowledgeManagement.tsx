@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { SystemInsightsWindow } from "@/components/SystemInsightsWindow";
 import { Navigation } from "@/components/Navigation";
+import { DocumentPreview } from "@/components/DocumentPreview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,6 +95,12 @@ export default function KnowledgeManagement() {
   const [uploadingContent, setUploadingContent] = useState(false);
   const [isEditContentDialogOpen, setIsEditContentDialogOpen] = useState(false);
   const [editingContentDoc, setEditingContentDoc] = useState<ContentDocument | null>(null);
+  
+  // Document preview state
+  const [isPreviewingContent, setIsPreviewingContent] = useState(false);
+  const [contentPreview, setContentPreview] = useState<any>(null);
+  const [isPreviewingCore, setIsPreviewingCore] = useState(false);
+  const [corePreview, setCorePreview] = useState<any>(null);
 
   // Pakal terms state
   const [pakalTerms, setPakalTerms] = useState<PakalTerm[]>([]);
@@ -129,6 +136,13 @@ export default function KnowledgeManagement() {
   useEffect(() => {
     fetchPakalTerms();
   }, []);
+
+  // Trigger preview when content doc file is selected
+  useEffect(() => {
+    if (contentDocFile && !contentPreview) {
+      handlePreviewContentDoc();
+    }
+  }, [contentDocFile]);
 
   // Real-time subscription for core documents processing status
   useEffect(() => {
@@ -681,6 +695,100 @@ export default function KnowledgeManagement() {
     }
   };
 
+  const handlePreviewContentDoc = async () => {
+    if (!contentDocFile) return;
+
+    setIsPreviewingContent(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', contentDocFile);
+
+      const { data, error } = await supabase.functions.invoke('preview-document', {
+        body: formData
+      });
+
+      if (error) throw error;
+
+      setContentPreview(data);
+    } catch (error) {
+      console.error('Error previewing content document:', error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן לטעון תצוגה מקדימה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPreviewingContent(false);
+    }
+  };
+
+  const handleConfirmContentUpload = async () => {
+    if (!contentDocFile || !user) return;
+
+    setUploadingContent(true);
+    try {
+      // Upload file to storage
+      const filePath = `${user.id}/${Date.now()}_${contentDocFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, contentDocFile);
+
+      if (uploadError) throw uploadError;
+
+      // Create document record
+      const { data: docData, error: insertError } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          title: contentDocFile.name.replace(/\.[^/.]+$/, ''),
+          filename: contentDocFile.name,
+          file_path: filePath,
+          file_size: contentDocFile.size,
+          file_type: contentDocFile.name.split('.').pop() || 'unknown',
+          document_type: 'content',
+          document_level: contentDocLevel,
+          status: 'ממתין לאישור',
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Trigger processing for embeddings
+      if (docData) {
+        try {
+          await supabase.functions.invoke('process-document', {
+            body: { documentId: docData.id }
+          });
+          console.log('Document processing triggered');
+        } catch (procError) {
+          console.error('Error triggering processing:', procError);
+        }
+      }
+
+      const levelLabel = formatDocLevel(contentDocLevel);
+      toast({
+        title: "הועלה בהצלחה",
+        description: `מסמך תוכן ב${levelLabel} נוסף למערכת. מעבד עכשיו...`,
+      });
+
+      setIsUploadContentDialogOpen(false);
+      setContentDocFile(null);
+      setContentPreview(null);
+      setContentDocLevel("L1");
+      fetchContentDocuments();
+    } catch (error) {
+      console.error('Error uploading content document:', error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן להעלות את מסמך התוכן",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingContent(false);
+    }
+  };
+
   const handleApproveContentDoc = async (docId: string) => {
     if (!user) return;
 
@@ -983,56 +1091,74 @@ export default function KnowledgeManagement() {
                 <div className="flex items-center justify-between">
                   <CardTitle>מסמכי תוכן</CardTitle>
                   <div className="flex gap-2">
-                  <Dialog open={isUploadContentDialogOpen} onOpenChange={setIsUploadContentDialogOpen}>
+                  <Dialog 
+                    open={isUploadContentDialogOpen} 
+                    onOpenChange={(open) => {
+                      setIsUploadContentDialogOpen(open);
+                      if (!open) {
+                        setContentDocFile(null);
+                        setContentPreview(null);
+                      }
+                    }}
+                  >
                     <DialogTrigger asChild>
                       <Button>
                         <Plus className="h-4 w-4 ml-1" />
                         העלה מסמך תוכן
                       </Button>
                     </DialogTrigger>
-                    <DialogContent dir="rtl">
+                    <DialogContent dir="rtl" className="max-w-3xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>העלאת מסמך תוכן</DialogTitle>
                         <DialogDescription>
-                          העלה מסמך תוכן חדש וקבע את רמת הידע שלו
+                          {!contentPreview ? 'העלה מסמך תוכן חדש וקבע את רמת הידע שלו' : 'בדוק את התוכן המחולץ לפני ההעלאה'}
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 pt-4">
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">בחר קובץ</label>
-                          <Input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.txt,.md"
-                            onChange={(e) => setContentDocFile(e.target.files?.[0] || null)}
+                        {!contentPreview ? (
+                          <>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">בחר קובץ</label>
+                              <Input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.txt,.md"
+                                onChange={(e) => {
+                                  setContentDocFile(e.target.files?.[0] || null);
+                                  setContentPreview(null);
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">רמת ידע</label>
+                              <Select value={contentDocLevel} onValueChange={setContentDocLevel}>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="L1">רמה 1 - מסמכי ליבה פק"לים</SelectItem>
+                                  <SelectItem value="L2">רמה 2 - כלים ופעילויות</SelectItem>
+                                  <SelectItem value="L3">רמה 3 - מחקר והרחבה</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {isPreviewingContent && (
+                              <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+                                <span className="mr-3 text-muted-foreground">טוען תצוגה מקדימה...</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <DocumentPreview
+                            preview={contentPreview}
+                            isLoading={uploadingContent}
+                            onConfirm={handleConfirmContentUpload}
+                            onCancel={() => {
+                              setContentPreview(null);
+                              setContentDocFile(null);
+                            }}
                           />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">רמת ידע</label>
-                          <Select value={contentDocLevel} onValueChange={setContentDocLevel}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="L1">רמה 1 - מסמכי ליבה פק"לים</SelectItem>
-                              <SelectItem value="L2">רמה 2 - כלים ופעילויות</SelectItem>
-                              <SelectItem value="L3">רמה 3 - מחקר והרחבה</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => setIsUploadContentDialogOpen(false)}
-                          >
-                            ביטול
-                          </Button>
-                          <Button
-                            onClick={handleUploadContentDoc}
-                            disabled={!contentDocFile || uploadingContent}
-                          >
-                            {uploadingContent ? "מעלה..." : "העלה"}
-                          </Button>
-                        </div>
+                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
