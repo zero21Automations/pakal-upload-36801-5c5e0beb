@@ -33,27 +33,11 @@ serve(async (req) => {
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
       } else if (fileType === 'pdf') {
-        // Use pdfjs-dist for PDF files (Deno-compatible)
-        const pdfjsLib = await import('https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs');
+        // Use pdf-parse for PDF files (Deno-compatible via npm:)
+        const pdfParse = (await import('npm:pdf-parse/lib/pdf-parse.js')).default;
         const arrayBuffer = await file.arrayBuffer();
-        
-        // Load the PDF document
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
-        
-        // Extract text from all pages
-        const textPromises = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          textPromises.push(
-            pdf.getPage(i).then(async (page: any) => {
-              const textContent = await page.getTextContent();
-              return textContent.items.map((item: any) => item.str).join(' ');
-            })
-          );
-        }
-        
-        const pageTexts = await Promise.all(textPromises);
-        content = pageTexts.join('\n\n');
+        const data = await pdfParse(arrayBuffer);
+        content = data.text;
       } else {
         // Fallback for text files
         content = await file.text();
