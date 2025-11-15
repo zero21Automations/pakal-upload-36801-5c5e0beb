@@ -149,6 +149,36 @@ export type Database = {
         }
         Relationships: []
       }
+      pakal_terms: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string
+          definition: string
+          id: string
+          term: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by: string
+          definition: string
+          id?: string
+          term: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string
+          definition?: string
+          id?: string
+          term?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
