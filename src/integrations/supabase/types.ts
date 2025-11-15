@@ -64,27 +64,39 @@ export type Database = {
       }
       core_documents: {
         Row: {
+          chunks_count: number | null
           content: string
           created_at: string
           id: string
+          processed_at: string | null
+          processing_error: string | null
+          processing_status: string | null
           title: string
           updated_at: string
           updated_by: string
           version: number
         }
         Insert: {
+          chunks_count?: number | null
           content: string
           created_at?: string
           id?: string
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
           title: string
           updated_at?: string
           updated_by: string
           version?: number
         }
         Update: {
+          chunks_count?: number | null
           content?: string
           created_at?: string
           id?: string
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
           title?: string
           updated_at?: string
           updated_by?: string
@@ -144,6 +156,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          chunks_count: number | null
           content_type: string | null
           created_at: string
           description: string | null
@@ -154,6 +167,9 @@ export type Database = {
           file_type: string | null
           filename: string
           id: string
+          processed_at: string | null
+          processing_error: string | null
+          processing_status: string | null
           status: string
           title: string
           updated_at: string
@@ -162,6 +178,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          chunks_count?: number | null
           content_type?: string | null
           created_at?: string
           description?: string | null
@@ -172,6 +189,9 @@ export type Database = {
           file_type?: string | null
           filename: string
           id?: string
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -180,6 +200,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          chunks_count?: number | null
           content_type?: string | null
           created_at?: string
           description?: string | null
@@ -190,6 +211,9 @@ export type Database = {
           file_type?: string | null
           filename?: string
           id?: string
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
           status?: string
           title?: string
           updated_at?: string

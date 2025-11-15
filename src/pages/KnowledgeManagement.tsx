@@ -40,6 +40,10 @@ interface CoreDocument {
   version: number;
   updated_at: string;
   updated_by: string;
+  processing_status?: string;
+  processed_at?: string;
+  processing_error?: string;
+  chunks_count?: number;
 }
 
 interface ContentDocument {
@@ -51,6 +55,10 @@ interface ContentDocument {
   status: string;
   created_at: string;
   file_size: number;
+  processing_status?: string;
+  processed_at?: string;
+  processing_error?: string;
+  chunks_count?: number;
 }
 
 interface PakalTerm {
@@ -121,6 +129,92 @@ export default function KnowledgeManagement() {
   useEffect(() => {
     fetchPakalTerms();
   }, []);
+
+  // Real-time subscription for core documents processing status
+  useEffect(() => {
+    if (!coreDoc) return;
+
+    const channel = supabase
+      .channel('core-document-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'core_documents',
+          filter: `id=eq.${coreDoc.id}`
+        },
+        (payload) => {
+          console.log('Core document updated:', payload);
+          setCoreDoc(payload.new as CoreDocument);
+          
+          // Show toast for completed/failed processing
+          if (payload.new.processing_status === 'completed') {
+            toast({
+              title: "עיבוד הושלם",
+              description: `מסמך הליבה עובד בהצלחה. ${payload.new.chunks_count} קטעים נוצרו.`,
+            });
+          } else if (payload.new.processing_status === 'failed') {
+            toast({
+              title: "עיבוד נכשל",
+              description: payload.new.processing_error || "אירעה שגיאה בעיבוד המסמך",
+              variant: "destructive",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [coreDoc?.id]);
+
+  // Real-time subscription for content documents processing status
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('content-documents-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'documents',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Content document updated:', payload);
+          
+          // Update the document in the list
+          setContentDocs(prev => 
+            prev.map(doc => 
+              doc.id === payload.new.id ? payload.new as ContentDocument : doc
+            )
+          );
+          
+          // Show toast for completed/failed processing
+          if (payload.new.processing_status === 'completed') {
+            toast({
+              title: "עיבוד הושלם",
+              description: `${payload.new.title} עובד בהצלחה. ${payload.new.chunks_count} קטעים נוצרו.`,
+            });
+          } else if (payload.new.processing_status === 'failed') {
+            toast({
+              title: "עיבוד נכשל",
+              description: `${payload.new.title}: ${payload.new.processing_error || "שגיאה"}`,
+              variant: "destructive",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const fetchCoreDocument = async () => {
     try {
@@ -748,10 +842,33 @@ export default function KnowledgeManagement() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    מסמך ליבה – פק״ל במילואים 2025
-                  </CardTitle>
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      מסמך ליבה – פק״ל במילואים 2025
+                    </CardTitle>
+                    {coreDoc?.processing_status && (
+                      <Badge 
+                        variant={
+                          coreDoc.processing_status === 'completed' ? 'default' :
+                          coreDoc.processing_status === 'processing' ? 'secondary' :
+                          coreDoc.processing_status === 'failed' ? 'destructive' :
+                          'outline'
+                        }
+                        className="flex items-center gap-1"
+                      >
+                        {coreDoc.processing_status === 'processing' && (
+                          <span className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                        )}
+                        {coreDoc.processing_status === 'completed' && <CheckCircle className="h-3 w-3" />}
+                        {coreDoc.processing_status === 'failed' && <XCircle className="h-3 w-3" />}
+                        {coreDoc.processing_status === 'processing' ? 'מעבד...' :
+                         coreDoc.processing_status === 'completed' ? `עובד (${coreDoc.chunks_count} קטעים)` :
+                         coreDoc.processing_status === 'failed' ? 'נכשל' :
+                         'ממתין'}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <Dialog open={isUploadCoreDialogOpen} onOpenChange={setIsUploadCoreDialogOpen}>
                       <DialogTrigger asChild>
@@ -949,13 +1066,34 @@ export default function KnowledgeManagement() {
                           <FileText className="h-8 w-8 text-primary" />
                           <div>
                             <h3 className="font-medium">{doc.title}</h3>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <Badge variant={doc.document_level === 'L1' ? 'default' : doc.document_level === 'L2' ? 'secondary' : 'outline'}>
                                 {formatDocLevel(doc.document_level)}
                               </Badge>
                               <Badge variant={doc.status === 'מאושר' ? 'default' : 'secondary'}>
                                 {doc.status}
                               </Badge>
+                              {doc.processing_status && (
+                                <Badge 
+                                  variant={
+                                    doc.processing_status === 'completed' ? 'default' :
+                                    doc.processing_status === 'processing' ? 'secondary' :
+                                    doc.processing_status === 'failed' ? 'destructive' :
+                                    'outline'
+                                  }
+                                  className="flex items-center gap-1 text-xs"
+                                >
+                                  {doc.processing_status === 'processing' && (
+                                    <span className="animate-spin h-2 w-2 border border-current border-t-transparent rounded-full" />
+                                  )}
+                                  {doc.processing_status === 'completed' && <CheckCircle className="h-2 w-2" />}
+                                  {doc.processing_status === 'failed' && <XCircle className="h-2 w-2" />}
+                                  {doc.processing_status === 'processing' ? 'מעבד' :
+                                   doc.processing_status === 'completed' ? `${doc.chunks_count} קטעים` :
+                                   doc.processing_status === 'failed' ? 'נכשל' :
+                                   'ממתין'}
+                                </Badge>
+                              )}
                               <span className="text-xs text-muted-foreground">
                                 {(doc.file_size / 1024).toFixed(1)} KB
                               </span>
