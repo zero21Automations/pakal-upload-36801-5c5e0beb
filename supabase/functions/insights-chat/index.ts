@@ -81,7 +81,12 @@ serve(async (req) => {
     if (searchResults.length > 0) {
       contextText = '\n\nמידע רלוונטי מהמערכת:\n\n';
       searchResults.forEach((result: any, index: number) => {
-        const levelBadge = `L${result.level}`;
+        let levelBadge = '';
+        if (result.level === 0) {
+          levelBadge = 'מסמך ליבה';
+        } else {
+          levelBadge = `רמה ${result.level}`;
+        }
         contextText += `[${levelBadge}] ${result.source_title}\n${result.content}\n\n`;
         citations.push({
           source_id: result.source_id,

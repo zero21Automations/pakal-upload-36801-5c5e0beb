@@ -19,7 +19,7 @@ interface SearchRequest {
   unit_id?: string;
   mode?: 'insights' | 'user' | 'sandbox';
   top_k?: number;
-  level_weights?: { L1: number; L2: number; L3: number };
+  level_weights?: { Core: number; L1: number; L2: number; L3: number };
   include_drafts?: boolean;
 }
 
@@ -46,7 +46,7 @@ serve(async (req) => {
       unit_id, 
       mode = 'insights',
       top_k = 8,
-      level_weights = { L1: 0.20, L2: 0.08, L3: 0 },
+      level_weights = { Core: 0.50, L1: 0.20, L2: 0.08, L3: 0 },
       include_drafts = false
     }: SearchRequest = await req.json();
 
@@ -93,23 +93,17 @@ serve(async (req) => {
     }
 
     // Perform hybrid search with vector similarity and metadata filtering
+    // Search both regular documents and core documents
     let searchQuery = supabase
       .from('chunks')
       .select(`
         id,
         source_id,
+        source_type,
         content,
         level,
         metadata,
-        embedding,
-        documents!inner(
-          id,
-          title,
-          status,
-          level,
-          unit,
-          ai_determined_level
-        )
+        embedding
       `)
       .eq('org_id', org_id)
       .in('status', statusFilter);
@@ -160,23 +154,28 @@ serve(async (req) => {
           similarity = dotProduct / (queryMagnitude * chunkMagnitude);
         }
 
-        // Apply level-based boosting
-        const level = chunk.level || chunk.documents?.level || 3;
+        // Apply level-based boosting with Core (level 0) as highest
+        const level = chunk.level;
         let levelBoost = level_weights.L3; // default
-        if (level === 1) levelBoost = level_weights.L1;
+        if (level === 0) levelBoost = level_weights.Core;
+        else if (level === 1) levelBoost = level_weights.L1;
         else if (level === 2) levelBoost = level_weights.L2;
 
         const boosted_score = similarity + levelBoost;
 
+        // Get source title from metadata (for core docs) or documents table
+        const source_title = chunk.metadata?.title || chunk.documents?.title || 'Unknown';
+
         return {
           chunk_id: chunk.id,
           source_id: chunk.source_id,
+          source_type: chunk.source_type,
           content: chunk.content,
           level: level,
           confidence: similarity,
           metadata: chunk.metadata || {},
-          source_title: chunk.documents?.title || 'Unknown',
-          source_status: chunk.documents?.status || 'Unknown',
+          source_title,
+          source_status: chunk.status || 'approved',
           similarity,
           boosted_score
         };
@@ -209,11 +208,13 @@ serve(async (req) => {
 
     // Calculate metadata for insights
     const levelDistribution = {
+      Core: diversityFiltered.filter(r => r.level === 0).length,
       L1: diversityFiltered.filter(r => r.level === 1).length,
       L2: diversityFiltered.filter(r => r.level === 2).length,
       L3: diversityFiltered.filter(r => r.level === 3).length,
     };
 
+    const hasCore = levelDistribution.Core > 0;
     const hasL1 = levelDistribution.L1 > 0;
     const avgConfidence = diversityFiltered.reduce((sum, r) => sum + r.confidence, 0) / diversityFiltered.length;
 
@@ -222,6 +223,7 @@ serve(async (req) => {
       returned: diversityFiltered.length,
       search_mode: mode,
       level_distribution: levelDistribution,
+      has_core_content: hasCore,
       has_l1_content: hasL1,
       avg_confidence: avgConfidence,
       level_weights_applied: level_weights,

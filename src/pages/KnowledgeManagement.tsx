@@ -238,6 +238,8 @@ export default function KnowledgeManagement() {
       // Read file content
       const text = await coreDocFile.text();
       
+      let coreDocId = coreDoc?.id;
+      
       if (coreDoc) {
         // Update existing
         const { error } = await supabase
@@ -253,20 +255,36 @@ export default function KnowledgeManagement() {
         if (error) throw error;
       } else {
         // Create new
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('core_documents')
           .insert({
             title: 'מסמך ליבה – פק״ל במילואים 2025',
             content: text,
             updated_by: user.id,
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+        coreDocId = data.id;
+      }
+
+      // Trigger processing for embeddings
+      if (coreDocId) {
+        try {
+          await supabase.functions.invoke('process-core-document', {
+            body: { coreDocId }
+          });
+          console.log('Core document processing triggered');
+        } catch (procError) {
+          console.error('Error triggering processing:', procError);
+          // Don't fail the upload if processing fails
+        }
       }
 
       toast({
         title: "הועלה בהצלחה",
-        description: "מסמך הליבה הועלה ועודכן במערכת",
+        description: "מסמך הליבה הועלה ועודכן במערכת. מעבד עכשיו...",
       });
 
       setIsUploadCoreDialogOpen(false);
@@ -305,7 +323,7 @@ export default function KnowledgeManagement() {
       if (uploadError) throw uploadError;
 
       // Create document record
-      const { error: insertError } = await supabase
+      const { data: docData, error: insertError } = await supabase
         .from('documents')
         .insert({
           user_id: user.id,
@@ -317,13 +335,29 @@ export default function KnowledgeManagement() {
           document_type: 'content',
           document_level: contentDocLevel,
           status: 'ממתין לאישור',
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
 
+      // Trigger processing for embeddings
+      if (docData) {
+        try {
+          await supabase.functions.invoke('process-document', {
+            body: { documentId: docData.id }
+          });
+          console.log('Document processing triggered');
+        } catch (procError) {
+          console.error('Error triggering processing:', procError);
+          // Don't fail the upload if processing fails
+        }
+      }
+
+      const levelLabel = formatDocLevel(contentDocLevel);
       toast({
         title: "הועלה בהצלחה",
-        description: `מסמך תוכן ברמה ${contentDocLevel} נוסף למערכת`,
+        description: `מסמך תוכן ב${levelLabel} נוסף למערכת. מעבד עכשיו...`,
       });
 
       setIsUploadContentDialogOpen(false);
