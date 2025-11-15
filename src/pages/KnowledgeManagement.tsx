@@ -932,16 +932,27 @@ export default function KnowledgeManagement() {
                           <span className="text-xs text-muted-foreground">
                             {new Date(doc.created_at).toLocaleDateString('he-IL')}
                           </span>
-                          {doc.status === 'ממתין לאישור' && (
+                          {doc.status === 'ממתין לאישור' ? (
                             <Button
-                              variant="ghost"
+                              variant="default"
                               size="sm"
                               onClick={() => handleApproveContentDoc(doc.id)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              className="bg-green-600 hover:bg-green-700 text-white"
                             >
-                              <CheckCircle className="h-4 w-4" />
+                              <CheckCircle className="h-4 w-4 ml-1" />
+                              אשר
                             </Button>
-                          )}
+                          ) : doc.status === 'מאושר' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="text-green-600 border-green-600"
+                            >
+                              <CheckCircle className="h-4 w-4 ml-1" />
+                              מאושר
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="sm"
