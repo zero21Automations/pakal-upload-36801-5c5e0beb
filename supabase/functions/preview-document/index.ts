@@ -33,11 +33,15 @@ serve(async (req) => {
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
       } else if (fileType === 'pdf') {
-        // Use pdf-parse for PDF files (Deno-compatible via npm:)
-        const pdfParse = (await import('npm:pdf-parse/lib/pdf-parse.js')).default;
+        // Use @pdf/pdftext for PDF files (Deno + Edge-friendly)
+        const { pdfText } = await import('jsr:@pdf/pdftext@1.3.2');
         const arrayBuffer = await file.arrayBuffer();
-        const data = await pdfParse(arrayBuffer);
-        content = data.text;
+        const u8 = new Uint8Array(arrayBuffer);
+        const pages: Record<string | number, string> = await pdfText(u8);
+        content = Object.keys(pages)
+          .sort((a, b) => Number(a) - Number(b))
+          .map((k) => pages[k as keyof typeof pages])
+          .join('\n\n');
       } else {
         // Fallback for text files
         content = await file.text();
