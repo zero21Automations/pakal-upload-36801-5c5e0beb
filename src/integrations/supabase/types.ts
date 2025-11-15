@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      chunks: {
+        Row: {
+          content: string
+          created_at: string
+          embedding: string | null
+          id: string
+          level: number
+          metadata: Json | null
+          org_id: string
+          sequence_number: number
+          source_id: string
+          source_type: string
+          status: string
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          embedding?: string | null
+          id: string
+          level: number
+          metadata?: Json | null
+          org_id: string
+          sequence_number: number
+          source_id: string
+          source_type: string
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          level?: number
+          metadata?: Json | null
+          org_id?: string
+          sequence_number?: number
+          source_id?: string
+          source_type?: string
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       core_documents: {
         Row: {
           content: string

@@ -180,10 +180,11 @@ const Chat = () => {
     }
     
     if (metadata.level_distribution) {
-      const { L1, L2, L3 } = metadata.level_distribution;
-      if (L1 > 0) items.push(`L1: ${L1}`);
-      if (L2 > 0) items.push(`L2: ${L2}`);
-      if (L3 > 0) items.push(`L3: ${L3}`);
+      const levelDist = metadata.level_distribution as any;
+      if (levelDist.Core > 0) items.push(`מסמך ליבה: ${levelDist.Core}`);
+      if (levelDist.L1 > 0) items.push(`רמה 1: ${levelDist.L1}`);
+      if (levelDist.L2 > 0) items.push(`רמה 2: ${levelDist.L2}`);
+      if (levelDist.L3 > 0) items.push(`רמה 3: ${levelDist.L3}`);
     }
 
     return items.length > 0 ? items.join(' • ') : null;

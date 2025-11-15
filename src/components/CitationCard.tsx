@@ -20,19 +20,21 @@ interface CitationCardProps {
 const CitationCard = ({ citation, onViewSource }: CitationCardProps) => {
   const getLevelColor = (level: number) => {
     switch (level) {
+      case 0: return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case 1: return "bg-green-100 text-green-800 border-green-200";
       case 2: return "bg-blue-100 text-blue-800 border-blue-200";
-      case 3: return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case 3: return "bg-gray-100 text-gray-800 border-gray-200";
       default: return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
   const getLevelText = (level: number) => {
     switch (level) {
-      case 1: return "L1 - פק״ל ליבה";
-      case 2: return "L2 - כלים והדרכות";
-      case 3: return "L3 - מחקר והקשר";
-      default: return `L${level}`;
+      case 0: return "מסמך ליבה";
+      case 1: return "רמה 1 - פק״ל ליבה";
+      case 2: return "רמה 2 - כלים והדרכות";
+      case 3: return "רמה 3 - מחקר והקשר";
+      default: return `רמה ${level}`;
     }
   };
 
