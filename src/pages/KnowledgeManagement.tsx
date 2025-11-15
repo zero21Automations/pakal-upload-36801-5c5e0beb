@@ -137,12 +137,12 @@ export default function KnowledgeManagement() {
     fetchPakalTerms();
   }, []);
 
-  // Trigger preview when content doc file is selected
-  useEffect(() => {
-    if (contentDocFile && !contentPreview) {
-      handlePreviewContentDoc();
-    }
-  }, [contentDocFile]);
+  // Preview disabled temporarily
+  // useEffect(() => {
+  //   if (contentDocFile && !contentPreview) {
+  //     handlePreviewContentDoc();
+  //   }
+  // }, [contentDocFile]);
 
   // Real-time subscription for core documents processing status
   useEffect(() => {
@@ -1132,7 +1132,7 @@ export default function KnowledgeManagement() {
                       <DialogHeader>
                         <DialogTitle>העלאת מסמך תוכן</DialogTitle>
                         <DialogDescription>
-                          {!contentPreview ? 'העלה מסמך תוכן חדש וקבע את רמת הידע שלו' : 'בדוק את התוכן המחולץ לפני ההעלאה'}
+                          העלה מסמך תוכן חדש וקבע את רמת הידע שלו
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 pt-4">
@@ -1162,12 +1162,24 @@ export default function KnowledgeManagement() {
                                 </SelectContent>
                               </Select>
                             </div>
-                            {isPreviewingContent && (
-                              <div className="flex items-center justify-center py-8">
-                                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-                                <span className="mr-3 text-muted-foreground">טוען תצוגה מקדימה...</span>
-                              </div>
-                            )}
+                            <div className="flex justify-end gap-2 pt-2">
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setIsUploadContentDialogOpen(false);
+                                  setContentDocFile(null);
+                                  setContentPreview(null);
+                                }}
+                              >
+                                ביטול
+                              </Button>
+                              <Button
+                                onClick={handleConfirmContentUpload}
+                                disabled={!contentDocFile || uploadingContent}
+                              >
+                                {uploadingContent ? "מעלה..." : "העלה"}
+                              </Button>
+                            </div>
                           </>
                         ) : (
                           <DocumentPreview
