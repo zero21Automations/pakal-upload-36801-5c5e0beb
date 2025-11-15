@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.process-core-document]
 verify_jwt = false
 
+[functions.preview-document]
+verify_jwt = false
+
 [functions.rag-search]
 verify_jwt = false
 
