@@ -49,6 +49,15 @@ interface ContentDocument {
   file_size: number;
 }
 
+interface PakalTerm {
+  id: string;
+  term: string;
+  definition: string;
+  category: string | null;
+  created_at: string;
+  created_by: string;
+}
+
 export default function KnowledgeManagement() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -72,6 +81,15 @@ export default function KnowledgeManagement() {
   const [contentDocLevel, setContentDocLevel] = useState<string>("L1");
   const [uploadingContent, setUploadingContent] = useState(false);
 
+  // Pakal terms state
+  const [pakalTerms, setPakalTerms] = useState<PakalTerm[]>([]);
+  const [loadingTerms, setLoadingTerms] = useState(true);
+  const [isAddTermDialogOpen, setIsAddTermDialogOpen] = useState(false);
+  const [isEditTermDialogOpen, setIsEditTermDialogOpen] = useState(false);
+  const [editingTerm, setEditingTerm] = useState<PakalTerm | null>(null);
+  const [newTerm, setNewTerm] = useState({ term: "", definition: "", category: "" });
+  const [savingTerm, setSavingTerm] = useState(false);
+
   // System insights state
   const [isSystemInsightsOpen, setIsSystemInsightsOpen] = useState(false);
 
@@ -83,6 +101,11 @@ export default function KnowledgeManagement() {
   // Load content documents
   useEffect(() => {
     fetchContentDocuments();
+  }, []);
+
+  // Load pakal terms
+  useEffect(() => {
+    fetchPakalTerms();
   }, []);
 
   const fetchCoreDocument = async () => {
@@ -305,6 +328,133 @@ export default function KnowledgeManagement() {
     }
   };
 
+  const fetchPakalTerms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pakal_terms')
+        .select('*')
+        .order('term', { ascending: true });
+
+      if (error) throw error;
+      setPakalTerms(data || []);
+    } catch (error) {
+      console.error('Error fetching pakal terms:', error);
+    } finally {
+      setLoadingTerms(false);
+    }
+  };
+
+  const handleAddTerm = async () => {
+    if (!user || !newTerm.term.trim() || !newTerm.definition.trim()) {
+      toast({
+        title: "שגיאה",
+        description: "נא למלא את המונח והגדרה",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingTerm(true);
+    try {
+      const { error } = await supabase
+        .from('pakal_terms')
+        .insert({
+          term: newTerm.term,
+          definition: newTerm.definition,
+          category: newTerm.category || null,
+          created_by: user.id,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "נשמר בהצלחה",
+        description: "המונח נוסף למילון",
+      });
+
+      setIsAddTermDialogOpen(false);
+      setNewTerm({ term: "", definition: "", category: "" });
+      fetchPakalTerms();
+    } catch (error) {
+      console.error('Error adding term:', error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן להוסיף את המונח",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTerm(false);
+    }
+  };
+
+  const handleEditTerm = async () => {
+    if (!editingTerm || !editingTerm.term.trim() || !editingTerm.definition.trim()) {
+      toast({
+        title: "שגיאה",
+        description: "נא למלא את המונח והגדרה",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingTerm(true);
+    try {
+      const { error } = await supabase
+        .from('pakal_terms')
+        .update({
+          term: editingTerm.term,
+          definition: editingTerm.definition,
+          category: editingTerm.category || null,
+        })
+        .eq('id', editingTerm.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "עודכן בהצלחה",
+        description: "המונח עודכן במילון",
+      });
+
+      setIsEditTermDialogOpen(false);
+      setEditingTerm(null);
+      fetchPakalTerms();
+    } catch (error) {
+      console.error('Error editing term:', error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן לעדכן את המונח",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTerm(false);
+    }
+  };
+
+  const handleDeleteTerm = async (termId: string) => {
+    try {
+      const { error } = await supabase
+        .from('pakal_terms')
+        .delete()
+        .eq('id', termId);
+
+      if (error) throw error;
+
+      toast({
+        title: "נמחק בהצלחה",
+        description: "המונח הוסר מהמילון",
+      });
+
+      fetchPakalTerms();
+    } catch (error) {
+      console.error('Error deleting term:', error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן למחוק את המונח",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -325,9 +475,10 @@ export default function KnowledgeManagement() {
         </div>
 
         <Tabs defaultValue="core" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="core">מסמך ליבה</TabsTrigger>
             <TabsTrigger value="content">מסמכי תוכן</TabsTrigger>
+            <TabsTrigger value="terms">שפת פק״ל</TabsTrigger>
           </TabsList>
 
           {/* Core Document Tab */}
@@ -539,8 +690,187 @@ export default function KnowledgeManagement() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Pakal Terms Tab */}
+          <TabsContent value="terms" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>מילון שפת פק״ל</CardTitle>
+                  <Dialog open={isAddTermDialogOpen} onOpenChange={setIsAddTermDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 ml-1" />
+                        הוסף מונח
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent dir="rtl">
+                      <DialogHeader>
+                        <DialogTitle>הוספת מונח חדש</DialogTitle>
+                        <DialogDescription>
+                          הוסף מונח חדש למילון שפת הפק״ל
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">מונח</label>
+                          <Input
+                            value={newTerm.term}
+                            onChange={(e) => setNewTerm({ ...newTerm, term: e.target.value })}
+                            placeholder="לדוגמה: פק״ל"
+                            dir="rtl"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">הגדרה</label>
+                          <Textarea
+                            value={newTerm.definition}
+                            onChange={(e) => setNewTerm({ ...newTerm, definition: e.target.value })}
+                            placeholder="הגדרת המונח"
+                            className="min-h-[100px]"
+                            dir="rtl"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">קטגוריה (אופציונלי)</label>
+                          <Input
+                            value={newTerm.category}
+                            onChange={(e) => setNewTerm({ ...newTerm, category: e.target.value })}
+                            placeholder="לדוגמה: ארגון, אימונים"
+                            dir="rtl"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setIsAddTermDialogOpen(false)}
+                          >
+                            ביטול
+                          </Button>
+                          <Button
+                            onClick={handleAddTerm}
+                            disabled={savingTerm}
+                          >
+                            {savingTerm ? "שומר..." : "הוסף"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingTerms ? (
+                  <div className="text-center py-8 text-muted-foreground">טוען...</div>
+                ) : pakalTerms.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <BookOpen className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                    <p>אין מונחים במילון. לחץ על "הוסף מונח" כדי להתחיל.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pakalTerms.map((term) => (
+                      <div
+                        key={term.id}
+                        className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-lg">{term.term}</h3>
+                            {term.category && (
+                              <Badge variant="outline">{term.category}</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {term.definition}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 mr-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingTerm(term);
+                              setIsEditTermDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteTerm(term.id)}
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Term Dialog */}
+      <Dialog open={isEditTermDialogOpen} onOpenChange={setIsEditTermDialogOpen}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>עריכת מונח</DialogTitle>
+            <DialogDescription>
+              ערוך את המונח במילון שפת הפק״ל
+            </DialogDescription>
+          </DialogHeader>
+          {editingTerm && (
+            <div className="space-y-4 pt-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">מונח</label>
+                <Input
+                  value={editingTerm.term}
+                  onChange={(e) => setEditingTerm({ ...editingTerm, term: e.target.value })}
+                  dir="rtl"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">הגדרה</label>
+                <Textarea
+                  value={editingTerm.definition}
+                  onChange={(e) => setEditingTerm({ ...editingTerm, definition: e.target.value })}
+                  className="min-h-[100px]"
+                  dir="rtl"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">קטגוריה (אופציונלי)</label>
+                <Input
+                  value={editingTerm.category || ""}
+                  onChange={(e) => setEditingTerm({ ...editingTerm, category: e.target.value })}
+                  dir="rtl"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditTermDialogOpen(false);
+                    setEditingTerm(null);
+                  }}
+                >
+                  ביטול
+                </Button>
+                <Button
+                  onClick={handleEditTerm}
+                  disabled={savingTerm}
+                >
+                  {savingTerm ? "שומר..." : "שמור"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {isSystemInsightsOpen && (
         <SystemInsightsWindow
