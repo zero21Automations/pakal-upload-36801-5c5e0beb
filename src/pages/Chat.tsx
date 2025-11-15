@@ -91,55 +91,116 @@ const Chat = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageContent = inputValue.trim();
     setInputValue('');
     setIsLoading(true);
 
+    // Create placeholder for assistant message
+    const assistantMessageId = (Date.now() + 1).toString();
+    const assistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      content: '',
+      isUser: false,
+      timestamp: new Date(),
+      citations: [],
+      metadata: {}
+    };
+    setMessages(prev => [...prev, assistantMessage]);
+
     try {
-      const { data, error } = await supabase.functions.invoke('insights-chat', {
-        body: { 
-          message: userMessage.content,
-          org_id: 'temp-org-id', // In production, get from auth
-          unit_id: 'temp-unit-id',
-          mode: 'insights'
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/insights-chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            message: messageContent,
+            org_id: 'temp-org-id',
+            unit_id: 'temp-unit-id',
+            mode: 'insights'
+          }),
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
 
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: data.answer,
-        isUser: false,
-        timestamp: new Date(),
-        citations: data.citations || [],
-        metadata: data.metadata || {}
-      };
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      setMessages(prev => [...prev, assistantMessage]);
+      if (!reader) {
+        throw new Error('No reader available');
+      }
 
-      // Show success toast if L1 content was found
-      if (data.metadata?.has_l1_content) {
-        toast({
-          title: "תוכן L1 נמצא",
-          description: "התשובה מבוססת על תוכן ליבה של פק״ל",
-        });
+      let buffer = '';
+      let fullContent = '';
+      let receivedMetadata: any = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
+              
+              if (parsed.type === 'metadata') {
+                receivedMetadata = parsed;
+              } else if (parsed.type === 'content') {
+                fullContent += parsed.content;
+                // Update message in real-time
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessageId
+                    ? { ...msg, content: fullContent }
+                    : msg
+                ));
+              } else if (parsed.type === 'done') {
+                // Finalize message with metadata and citations
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        content: fullContent,
+                        citations: receivedMetadata?.citations || [],
+                        metadata: receivedMetadata?.metadata || {}
+                      }
+                    : msg
+                ));
+
+                // Show success toast if L1 content was found
+                if (receivedMetadata?.metadata?.has_l1_content) {
+                  toast({
+                    title: "תוכן L1 נמצא",
+                    description: "התשובה מבוססת על תוכן ליבה של פק״ל",
+                  });
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
       }
 
     } catch (error) {
       console.error('Error sending message:', error);
+      // Remove the placeholder message
+      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
       toast({
         title: "שגיאה",
         description: "שגיאה בשליחת ההודעה",
         variant: "destructive",
       });
-      
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: 'מצטער, אירעה שגיאה. אנא נסה שוב.',
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
