@@ -101,6 +101,12 @@ export default function KnowledgeManagement() {
   // System insights state
   const [isSystemInsightsOpen, setIsSystemInsightsOpen] = useState(false);
 
+  // Helper to format document level for display
+  const formatDocLevel = (level: string | null): string => {
+    if (!level) return 'לא מוגדר';
+    return level.replace('L', 'רמה ');
+  };
+
   // Load core document
   useEffect(() => {
     fetchCoreDocument();
@@ -522,6 +528,61 @@ export default function KnowledgeManagement() {
     }
   };
 
+  const handleDeleteCoreDoc = async () => {
+    if (!coreDoc || !window.confirm('האם אתה בטוח שברצונך למחוק את מסמך הליבה?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('core_documents')
+        .delete()
+        .eq('id', coreDoc.id);
+
+      if (error) throw error;
+
+      setCoreDoc(null);
+      setIsEditingCore(false);
+      toast({
+        title: "מסמך הליבה נמחק בהצלחה",
+      });
+    } catch (error) {
+      console.error('Error deleting core document:', error);
+      toast({
+        title: "שגיאה במחיקת מסמך הליבה",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleApproveContentDoc = async (docId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({
+          status: 'מאושר',
+          approved_at: new Date().toISOString(),
+          approved_by: user.id,
+        })
+        .eq('id', docId);
+
+      if (error) throw error;
+
+      setContentDocs(contentDocs.map(doc => 
+        doc.id === docId ? { ...doc, status: 'מאושר' } : doc
+      ));
+      toast({
+        title: "המסמך אושר בהצלחה",
+      });
+    } catch (error) {
+      console.error('Error approving document:', error);
+      toast({
+        title: "שגיאה באישור המסמך",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Get unique categories from terms
   const categories = useMemo(() => {
     const uniqueCategories = new Set(
@@ -695,6 +756,16 @@ export default function KnowledgeManagement() {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    {coreDoc && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={handleDeleteCoreDoc}
+                      >
+                        <XCircle className="h-4 w-4 ml-1" />
+                        מחק
+                      </Button>
+                    )}
                     {!isEditingCore ? (
                       <Button size="sm" onClick={() => setIsEditingCore(true)}>
                         <Edit className="h-4 w-4 ml-1" />
@@ -791,9 +862,9 @@ export default function KnowledgeManagement() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="L1">L1 - מסמכי ליבה פק"לים</SelectItem>
-                              <SelectItem value="L2">L2 - כלים ופעילויות</SelectItem>
-                              <SelectItem value="L3">L3 - מחקר והרחבה</SelectItem>
+                              <SelectItem value="L1">רמה 1 - מסמכי ליבה פק"לים</SelectItem>
+                              <SelectItem value="L2">רמה 2 - כלים ופעילויות</SelectItem>
+                              <SelectItem value="L3">רמה 3 - מחקר והרחבה</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -846,7 +917,7 @@ export default function KnowledgeManagement() {
                             <h3 className="font-medium">{doc.title}</h3>
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant={doc.document_level === 'L1' ? 'default' : doc.document_level === 'L2' ? 'secondary' : 'outline'}>
-                                {doc.document_level || 'לא מוגדר'}
+                                {formatDocLevel(doc.document_level)}
                               </Badge>
                               <Badge variant={doc.status === 'מאושר' ? 'default' : 'secondary'}>
                                 {doc.status}
@@ -861,6 +932,16 @@ export default function KnowledgeManagement() {
                           <span className="text-xs text-muted-foreground">
                             {new Date(doc.created_at).toLocaleDateString('he-IL')}
                           </span>
+                          {doc.status === 'ממתין לאישור' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleApproveContentDoc(doc.id)}
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1082,9 +1163,9 @@ export default function KnowledgeManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="L1">L1 - מסמכי ליבה פק"לים</SelectItem>
-                    <SelectItem value="L2">L2 - כלים ופעילויות</SelectItem>
-                    <SelectItem value="L3">L3 - מחקר והרחבה</SelectItem>
+                    <SelectItem value="L1">רמה 1 - מסמכי ליבה פק"לים</SelectItem>
+                    <SelectItem value="L2">רמה 2 - כלים ופעילויות</SelectItem>
+                    <SelectItem value="L3">רמה 3 - מחקר והרחבה</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
