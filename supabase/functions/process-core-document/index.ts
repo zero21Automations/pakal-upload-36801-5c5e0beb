@@ -12,19 +12,28 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  );
+
+  const openAIKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  let coreDocId: string | null = null;
+
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    );
-
-    const openAIKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIKey) {
-      throw new Error('OpenAI API key not configured');
-    }
-
-    const { coreDocId } = await req.json();
+    const body = await req.json();
+    coreDocId = body.coreDocId;
     console.log('Processing core document:', coreDocId);
+
+    // Update status to processing
+    await supabaseClient
+      .from('core_documents')
+      .update({ processing_status: 'processing', processing_error: null })
+      .eq('id', coreDocId);
 
     // Get core document from database
     const { data: coreDoc, error: docError } = await supabaseClient
@@ -34,6 +43,10 @@ serve(async (req) => {
       .single();
 
     if (docError || !coreDoc) {
+      await supabaseClient
+        .from('core_documents')
+        .update({ processing_status: 'failed', processing_error: 'Document not found' })
+        .eq('id', coreDocId);
       throw new Error('Core document not found');
     }
 
@@ -173,6 +186,16 @@ serve(async (req) => {
 
     console.log(`Successfully processed core document with ${chunkRecords.length} chunks`);
 
+    // Update status to completed
+    await supabaseClient
+      .from('core_documents')
+      .update({ 
+        processing_status: 'completed', 
+        processed_at: new Date().toISOString(),
+        chunks_count: chunkRecords.length 
+      })
+      .eq('id', coreDocId);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -184,6 +207,18 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in process-core-document function:', error);
+    
+    // Update status to failed if we have the coreDocId
+    if (coreDocId) {
+      await supabaseClient
+        .from('core_documents')
+        .update({ 
+          processing_status: 'failed',
+          processing_error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        .eq('id', coreDocId);
+    }
+    
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Unknown error occurred',

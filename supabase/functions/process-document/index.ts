@@ -12,19 +12,28 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  );
+
+  const openAIKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  let documentId: string | null = null;
+
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    );
-
-    const openAIKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIKey) {
-      throw new Error('OpenAI API key not configured');
-    }
-
-    const { documentId } = await req.json();
+    const body = await req.json();
+    documentId = body.documentId;
     console.log('Processing document:', documentId);
+
+    // Update status to processing
+    await supabaseClient
+      .from('documents')
+      .update({ processing_status: 'processing', processing_error: null })
+      .eq('id', documentId);
 
     // Get document from database
     const { data: document, error: docError } = await supabaseClient
@@ -34,6 +43,10 @@ serve(async (req) => {
       .single();
 
     if (docError || !document) {
+      await supabaseClient
+        .from('documents')
+        .update({ processing_status: 'failed', processing_error: 'Document not found' })
+        .eq('id', documentId);
       throw new Error('Document not found');
     }
 
@@ -278,7 +291,10 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
         reasons: classification.reasoning,
         ai_summary: classification.ai_summary,
         ai_keywords: classification.keywords,
-        processed_date: new Date().toISOString()
+        processed_date: new Date().toISOString(),
+        processing_status: 'completed',
+        processed_at: new Date().toISOString(),
+        chunks_count: chunkRows.length
       })
       .eq('id', documentId);
 
@@ -286,8 +302,6 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
       throw new Error('Failed to update document');
     }
 
-    // Store chunks (simplified table structure)
-    // In production, you'd have a proper chunks table with vector storage
     console.log(`Processed ${chunks.length} chunks for document ${documentId}`);
 
     return new Response(
@@ -302,6 +316,18 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
   } catch (error) {
     console.error('Error processing document:', error);
+    
+    // Update status to failed if we have documentId
+    if (documentId) {
+      await supabaseClient
+        .from('documents')
+        .update({ 
+          processing_status: 'failed',
+          processing_error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        .eq('id', documentId);
+    }
+    
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
