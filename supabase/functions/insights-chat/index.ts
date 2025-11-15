@@ -29,9 +29,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const openAIKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIKey) {
-      throw new Error('OpenAI API key not configured');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!lovableApiKey) {
+      throw new Error('Lovable API key not configured');
     }
 
     // Perform RAG search to get relevant context
@@ -158,14 +158,14 @@ serve(async (req) => {
         systemPrompt += '\n\nשים לב: לא נמצא תוכן רלוונטי במערכת לשאלה זו. ספק תשובה כללית מבוססת ידע מקצועי.';
       }
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openAIKey}`,
+          'Authorization': `Bearer ${lovableApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'google/gemini-2.5-flash',
           messages: [
             {
               role: 'system',
@@ -177,14 +177,13 @@ serve(async (req) => {
             }
           ],
           max_tokens: 1000,
-          temperature: 0.7,
         }),
       });
 
       const data = await response.json();
       
       if (!response.ok) {
-        console.error('OpenAI API error:', data);
+        console.error('Lovable AI error:', data);
         return new Response(
           JSON.stringify({ error: 'שגיאה ביצירת תשובה', details: data.error?.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
