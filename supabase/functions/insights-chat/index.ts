@@ -104,7 +104,10 @@ serve(async (req) => {
     let systemPrompt = '';
     let assistantMessage = '';
 
-    if (analysisType !== 'generic' && searchResults.length === 0) {
+    // Check if we should use specialized analysis (non-streaming)
+    const useSpecializedAnalysis = analysisType !== 'generic' && searchResults.length === 0;
+
+    if (useSpecializedAnalysis) {
       // Use specialized analysis functions for system insights
       switch (analysisType) {
         case 'gap_analysis':
@@ -125,9 +128,59 @@ serve(async (req) => {
         default:
           assistantMessage = await generateGenericInsight(supabaseClient, message, org_id);
       }
-    } else {
-      // Use RAG-powered chat with OpenAI
-      systemPrompt = `אתה עוזר דיגיטלי מתקדם עבור מערכת ידע פק״ל (פיתוח כוח לכידות).
+
+      // For non-streaming responses (specialized analysis functions)
+      const chatTurnId = `chat_${new Date().toISOString().split('T')[0]}_${Math.random().toString(36).substr(2, 4)}`;
+      
+      try {
+        await supabaseClient.from('chat_turns').insert({
+          id: chatTurnId,
+          org_id,
+          unit_id,
+          user_id: org_id,
+          question: message,
+          answer: assistantMessage,
+          mode,
+          retrieval_meta: searchMetadata
+        });
+
+        if (citations.length > 0) {
+          const citationInserts = citations.map(citation => ({
+            turn_id: chatTurnId,
+            source_id: citation.source_id,
+            chunk_id: citation.chunk_id,
+            level: citation.level,
+            confidence: citation.confidence,
+            excerpt: citation.excerpt
+          }));
+
+          await supabaseClient.from('citations').insert(citationInserts);
+        }
+      } catch (dbError) {
+        console.warn('Failed to store chat turn/citations:', dbError instanceof Error ? dbError.message : String(dbError));
+      }
+
+      return new Response(
+        JSON.stringify({
+          answer: assistantMessage,
+          citations,
+          query_type: analysisType,
+          metadata: {
+            model: 'google/gemini-2.5-flash',
+            mode,
+            search_results_count: searchResults.length,
+            has_l1_content: (searchMetadata as any).has_l1_content || false,
+            turn_id: chatTurnId,
+            timestamp: new Date().toISOString(),
+            ...searchMetadata
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use RAG-powered chat with streaming
+    systemPrompt = `אתה עוזר דיגיטלי מתקדם עבור מערכת ידע פק״ל (פיתוח כוח לכידות).
 
 מצב פעילות: ${mode === 'insights' ? 'תובנות מנהל' : mode}
 
@@ -177,74 +230,112 @@ serve(async (req) => {
             }
           ],
           max_tokens: 1000,
+          stream: true,
         }),
       });
 
-      const data = await response.json();
-      
       if (!response.ok) {
-        console.error('Lovable AI error:', data);
+        const errorData = await response.json();
+        console.error('Lovable AI error:', errorData);
         return new Response(
-          JSON.stringify({ error: 'שגיאה ביצירת תשובה', details: data.error?.message }),
+          JSON.stringify({ error: 'שגיאה ביצירת תשובה', details: errorData.error?.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      assistantMessage = data.choices[0].message.content;
-    }
+      // Return streaming response
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            // Send initial metadata
+            const initialData = JSON.stringify({
+              type: 'metadata',
+              citations,
+              metadata: searchMetadata
+            });
+            controller.enqueue(encoder.encode(`data: ${initialData}\n\n`));
 
-    // Store chat turn and citations in database
-    const chatTurnId = `chat_${new Date().toISOString().split('T')[0]}_${Math.random().toString(36).substr(2, 4)}`;
-    
-    try {
-      // Store chat turn
-      await supabaseClient.from('chat_turns').insert({
-        id: chatTurnId,
-        org_id,
-        unit_id,
-        user_id: org_id, // For now, using org_id as user_id
-        question: message,
-        answer: assistantMessage,
-        mode,
-        retrieval_meta: searchMetadata
+            // Stream the AI response
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let fullMessage = '';
+
+            if (!reader) {
+              throw new Error('No reader available');
+            }
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n');
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') continue;
+                  
+                  try {
+                    const parsed = JSON.parse(data);
+                    const content = parsed.choices?.[0]?.delta?.content;
+                    if (content) {
+                      fullMessage += content;
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'content', content })}\n\n`));
+                    }
+                  } catch (e) {
+                    // Skip malformed JSON
+                  }
+                }
+              }
+            }
+
+            // Store in database after streaming completes
+            assistantMessage = fullMessage;
+            const chatTurnId = `chat_${new Date().toISOString().split('T')[0]}_${Math.random().toString(36).substr(2, 4)}`;
+            
+            await supabaseClient.from('chat_turns').insert({
+              id: chatTurnId,
+              org_id,
+              unit_id,
+              user_id: org_id,
+              question: message,
+              answer: assistantMessage,
+              mode,
+              retrieval_meta: searchMetadata
+            });
+
+            if (citations.length > 0) {
+              const citationInserts = citations.map(citation => ({
+                turn_id: chatTurnId,
+                source_id: citation.source_id,
+                chunk_id: citation.chunk_id,
+                level: citation.level,
+                confidence: citation.confidence,
+                excerpt: citation.excerpt
+              }));
+              await supabaseClient.from('citations').insert(citationInserts);
+            }
+
+            // Send done signal
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+            controller.close();
+          } catch (error) {
+            console.error('Streaming error:', error);
+            controller.error(error);
+          }
+        }
       });
 
-      // Store citations
-      if (citations.length > 0) {
-        const citationInserts = citations.map(citation => ({
-          turn_id: chatTurnId,
-          source_id: citation.source_id,
-          chunk_id: citation.chunk_id,
-          level: citation.level,
-          confidence: citation.confidence,
-          excerpt: citation.excerpt
-        }));
-
-        await supabaseClient.from('citations').insert(citationInserts);
-        console.log(`Stored ${citations.length} citations for turn ${chatTurnId}`);
-      }
-    } catch (dbError) {
-      console.warn('Failed to store chat turn/citations:', dbError instanceof Error ? dbError.message : String(dbError));
-      // Don't fail the request if DB storage fails
-    }
-
-    return new Response(
-      JSON.stringify({
-        answer: assistantMessage,
-        citations,
-        query_type: analysisType,
-        metadata: {
-          model: 'gpt-4o-mini',
-          mode,
-          search_results_count: searchResults.length,
-          has_l1_content: (searchMetadata as any).has_l1_content || false,
-          turn_id: chatTurnId,
-          timestamp: new Date().toISOString(),
-          ...searchMetadata
+      return new Response(stream, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
         }
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      });
 
   } catch (error) {
     console.error('Error in insights chat:', error);
