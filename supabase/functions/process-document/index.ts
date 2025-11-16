@@ -187,114 +187,79 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
     // Graceful fallback: try embeddings with ultra-conservative settings, but don't fail the whole pipeline
     try {
-      // Generate embeddings for chunks with ultra-aggressive memory optimization
-      const maxContentLength = Math.min(content.length, 800); // Ultra-reduced to 800 chars max
+      // Generate embeddings for chunks with EXTREME memory optimization to avoid OOM
+      const maxContentLength = Math.min(content.length, 300); // Hyper-reduced to 300 chars max
       const contentToProcess = content.slice(0, maxContentLength);
       
       // Clear full content to free memory before processing
       content = '';
       
-      const chunks = chunkText(contentToProcess, 400, 30); // Much smaller chunks with less overlap
+      // Create single chunk only - no overlap needed for such small content
+      const chunks = [contentToProcess]; // Single chunk to minimize memory
       
-      console.log(`Processing ${chunks.length} chunks from ${maxContentLength} characters of content`);
+      console.log(`Processing 1 chunk from ${maxContentLength} characters of content`);
 
-      // Process embeddings in small batches to avoid memory issues
-      const batchSize = 1; // Process one chunk at a time for minimal memory
-      
-      for (let i = 0; i < chunks.length; i += batchSize) {
-        const batch = chunks.slice(i, i + batchSize);
-        const batchStartIndex = i;
-        let embeddingAttempts = 0;
-        const maxEmbeddingAttempts = 3;
+      // Process the single chunk to avoid memory issues
+      try {
+        console.log('Embedding single chunk attempt');
 
-        while (embeddingAttempts < maxEmbeddingAttempts) {
-          try {
-            console.log(`Embedding batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}, attempt ${embeddingAttempts + 1}`);
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openAIKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: chunks
+          }),
+        });
 
-            const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${openAIKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'text-embedding-3-small',
-                input: batch
-              }),
-            });
-
-            if (!embeddingResponse.ok) {
-              const errorData = await embeddingResponse.json();
-              throw new Error(`OpenAI Embeddings error: ${errorData.error?.message || 'Unknown error'}`);
-            }
-
-            const embeddingData = await embeddingResponse.json();
-            const data = embeddingData.data as Array<{ embedding: number[] }>;
-
-            const upsertBatchSize = 1;
-            let rows = data.map((d, j) => {
-              const chunkIndex = batchStartIndex + j;
-              const chunkText = batch[j];
-              return {
-                id: `${documentId}:${chunkIndex}`,
-                org_id: document.user_id,
-                unit_id: null,
-                level: levelNum,
-                metadata: {
-                  filename: document.filename,
-                  title: document.title,
-                  file_path: document.file_path,
-                  chunk_index: chunkIndex,
-                  total_chunks: chunks.length,
-                  content_length: chunkText.length
-                },
-                embedding: d.embedding,
-                source_id: documentId,
-                status: 'approved',
-                source_type: 'document',
-                content: chunkText,
-                sequence_number: chunkIndex,
-              } as any;
-            });
-
-            for (let k = 0; k < rows.length; k += upsertBatchSize) {
-              const slice = rows.slice(k, k + upsertBatchSize);
-              const { error: chunkUpsertError } = await supabaseClient
-                .from('chunks')
-                .upsert(slice, { onConflict: 'id' });
-
-              if (chunkUpsertError) {
-                console.error('Failed to upsert chunk slice:', chunkUpsertError);
-                throw new Error(`Failed to store chunk slice ${Math.floor(k / upsertBatchSize) + 1}: ${chunkUpsertError.message}`);
-              }
-              chunksInsertedCount += slice.length;
-            }
-
-            // Clear to free memory aggressively
-            rows.length = 0;
-            rows = [];
-
-            break;
-          } catch (embeddingError) {
-            embeddingAttempts++;
-            console.error(`Embedding attempt ${embeddingAttempts} failed:`, embeddingError);
-
-            if (embeddingAttempts >= maxEmbeddingAttempts) {
-              throw new Error(`Embedding generation failed after ${maxEmbeddingAttempts} attempts: ${embeddingError instanceof Error ? embeddingError.message : String(embeddingError)}`);
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 1000 * embeddingAttempts));
-          }
+        if (!embeddingResponse.ok) {
+          const errorData = await embeddingResponse.json();
+          throw new Error(`OpenAI Embeddings error: ${errorData.error?.message || 'Unknown error'}`);
         }
 
-        // Longer delay between batches for garbage collection and memory cleanup
-        if (i + batchSize < chunks.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        const embeddingData = await embeddingResponse.json();
+        const data = embeddingData.data as Array<{ embedding: number[] }>;
+
+        const row = {
+          id: `${documentId}:0`,
+          org_id: document.user_id,
+          unit_id: null,
+          level: levelNum,
+          metadata: {
+            filename: document.filename,
+            title: document.title,
+            file_path: document.file_path,
+            chunk_index: 0,
+            total_chunks: 1,
+            content_length: chunks[0].length
+          },
+          embedding: data[0].embedding,
+          source_id: documentId,
+          status: 'approved',
+          source_type: 'document',
+          content: chunks[0],
+          sequence_number: 0,
+        } as any;
+
+        const { error: chunkUpsertError } = await supabaseClient
+          .from('chunks')
+          .upsert([row], { onConflict: 'id' });
+
+        if (chunkUpsertError) {
+          console.error('Failed to upsert chunk:', chunkUpsertError);
+          throw new Error(`Failed to store chunk: ${chunkUpsertError.message}`);
         }
+        
+        chunksInsertedCount = 1;
+        console.log('Successfully embedded and stored 1 chunk');
+
+      } catch (embeddingError) {
+        console.error('Embedding failed:', embeddingError);
+        throw embeddingError;
       }
-      
-      // Clear chunks array to free memory
-      chunks.length = 0;
 
       console.log(`Finished embedding + upsert pipeline. Inserted ${chunksInsertedCount} chunks`);
 
