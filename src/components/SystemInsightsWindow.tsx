@@ -19,9 +19,20 @@ import { useToast } from "@/hooks/use-toast";
 
 interface SystemInsightsWindowProps {
   onClose: () => void;
+  analytics: {
+    totalDocuments: number;
+    pendingApprovals: number;
+    lastUpdate: string;
+    levelDistribution: {
+      core: number;
+      l1: number;
+      l2: number;
+      l3: number;
+    };
+  };
 }
 
-export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => {
+export const SystemInsightsWindow = ({ onClose, analytics }: SystemInsightsWindowProps) => {
   const { toast } = useToast();
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
@@ -55,15 +66,10 @@ export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => 
     });
   };
 
-  const analytics = {
-    totalDocuments: 0,
-    pendingApprovals: 0,
-    lastUpdate: "-",
-    topMissingTopics: [],
-    levelMix: { l1Rate: 0, l2Rate: 0, l3Rate: 0 },
-    staleDocuments: [],
-    flaggedContent: []
-  };
+  const totalDocs = analytics.totalDocuments;
+  const l1Percentage = totalDocs > 0 ? (analytics.levelDistribution.l1 / totalDocs) * 100 : 0;
+  const l2Percentage = totalDocs > 0 ? (analytics.levelDistribution.l2 / totalDocs) * 100 : 0;
+  const l3Percentage = totalDocs > 0 ? (analytics.levelDistribution.l3 / totalDocs) * 100 : 0;
 
   return (
     <div
@@ -108,7 +114,7 @@ export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => 
                 סטטיסטיקות מערכת
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span>סה״כ מסמכים</span>
                 <Badge variant="outline">{analytics.totalDocuments.toLocaleString()}</Badge>
@@ -121,71 +127,56 @@ export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => 
                 <span>עודכן</span>
                 <span className="text-muted-foreground">{analytics.lastUpdate}</span>
               </div>
+              
+              {/* Level Distribution */}
+              <div className="pt-2 space-y-2">
+                <div className="text-xs font-medium">התפלגות רמות</div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs w-12">Core</span>
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-primary h-2 rounded-full transition-all"
+                        style={{ width: `${analytics.levelDistribution.core > 0 ? 100 : 0}%` }}
+                      />
+                    </div>
+                    <span className="text-xs w-8 text-right">{analytics.levelDistribution.core}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs w-12">L1</span>
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all"
+                        style={{ width: `${l1Percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-xs w-8 text-right">{analytics.levelDistribution.l1}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs w-12">L2</span>
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full transition-all"
+                        style={{ width: `${l2Percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-xs w-8 text-right">{analytics.levelDistribution.l2}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs w-12">L3</span>
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-amber-500 h-2 rounded-full transition-all"
+                        style={{ width: `${l3Percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-xs w-8 text-right">{analytics.levelDistribution.l3}</span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Top Missing Topics */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                פערי ידע מובילים
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {analytics.topMissingTopics.length === 0 ? (
-                <p className="text-xs text-muted-foreground">אין פערי ידע זמינים</p>
-              ) : (
-                analytics.topMissingTopics.map((topic, index) => (
-                  <div key={index} className="text-xs space-y-1">
-                    <div className="flex items-start justify-between">
-                      <span className="text-muted-foreground leading-tight">{topic.topic}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {topic.count}
-                      </Badge>
-                    </div>
-                    {!topic.hasL1 && (
-                      <Badge variant="destructive" className="text-xs">
-                        חסר L1
-                      </Badge>
-                    )}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Flagged Content */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                תוכן מדוגל
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {analytics.flaggedContent.length === 0 ? (
-                <p className="text-xs text-muted-foreground">אין תוכן מדוגל</p>
-              ) : (
-                analytics.flaggedContent.map((item, index) => (
-                  <div key={index} className="text-xs space-y-1">
-                    <div className="font-medium text-muted-foreground">{item.title}</div>
-                    <div className="flex gap-1">
-                      <Badge 
-                        variant={item.severity === 'high' ? 'destructive' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {item.flagType}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {item.severity}
-                      </Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
 
           {/* Quick Actions */}
           <Card>
