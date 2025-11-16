@@ -182,13 +182,13 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
       .eq('id', documentId);
 
     // Generate embeddings for chunks with memory optimization
-    const maxContentLength = Math.min(content.length, 6000); // Further reduced to prevent compute/memory issues
+    const maxContentLength = Math.min(content.length, 2000); // Aggressively reduced to prevent memory issues
     const contentToProcess = content.slice(0, maxContentLength);
     
     // Clear full content to free memory before processing
     content = '';
     
-    const chunks = chunkText(contentToProcess, 700, 80); // Fewer, larger chunks
+    const chunks = chunkText(contentToProcess, 800, 50); // Fewer, larger chunks
     
     console.log(`Processing ${chunks.length} chunks from ${maxContentLength} characters of content`);
 
@@ -197,8 +197,8 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
     let chunksInsertedCount = 0;
 
     // Process embeddings in small batches to avoid memory issues
-    const batchSize = 3; // Very small batch size
-    const allEmbeddings: Array<{ embedding: number[]; index: number }> = [];
+    const batchSize = 1; // Process one chunk at a time for minimal memory
+    // removed allEmbeddings to avoid retaining large arrays in memory
     
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
@@ -287,7 +287,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
       // Small delay between batches to prevent rate limiting and memory spikes
       if (i + batchSize < chunks.length) {
-        await new Promise(resolve => setTimeout(resolve, 220));
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
     
@@ -296,17 +296,11 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
     console.log(`Finished embedding + upsert pipeline. Inserted ${chunksInsertedCount} chunks`);
 
-    // Update document with AI analysis and numeric level
+    // Update document with results
     const { error: updateError } = await supabaseClient
       .from('documents')
       .update({
-        ai_determined_level: classification.level,
-        level: levelNum,
-        confidence: classification.confidence,
-        reasons: classification.reasoning,
-        ai_summary: classification.ai_summary,
-        ai_keywords: classification.keywords,
-        processed_date: new Date().toISOString(),
+        document_level: classification.level,
         processing_status: 'completed',
         processed_at: new Date().toISOString(),
         chunks_count: chunksInsertedCount
