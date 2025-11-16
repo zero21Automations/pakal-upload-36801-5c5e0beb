@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,6 +52,7 @@ interface Citation {
 
 const Chat = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -118,7 +120,7 @@ const Chat = () => {
           },
           body: JSON.stringify({
             message: messageContent,
-            org_id: 'temp-org-id',
+            org_id: user?.id || 'temp-org-id',
             unit_id: 'temp-unit-id',
             mode: 'knowledge'
           }),
