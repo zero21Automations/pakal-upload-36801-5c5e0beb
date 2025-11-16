@@ -11,6 +11,11 @@ import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import CitationCard from "@/components/CitationCard";
+import { RoleSelector } from "@/components/RoleSelector";
+import { useUserRole } from "@/hooks/useUserRole";
+import { SuggestedQuestions } from "@/components/chat/SuggestedQuestions";
+import { CopyPasteActions } from "@/components/chat/CopyPasteActions";
+import { ROLE_LABELS } from "@/types/roles";
 import { 
   Send, 
   MessageSquare, 
@@ -55,8 +60,10 @@ interface Citation {
 const Chat = () => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { profile, role, loading: roleLoading, needsOnboarding } = useUserRole();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -90,6 +97,12 @@ const Chat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (!roleLoading && needsOnboarding) {
+      setShowOnboarding(true);
+    }
+  }, [roleLoading, needsOnboarding]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -263,6 +276,10 @@ const Chat = () => {
     return items.length > 0 ? items.join(' • ') : null;
   };
 
+  if (showOnboarding) {
+    return <RoleSelector onComplete={() => setShowOnboarding(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -272,14 +289,20 @@ const Chat = () => {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <MessageSquare className="h-8 w-8 text-primary" />
-              <h1 className="text-3xl font-bold text-foreground">סימולטור צ'אט - תובנות מנהל</h1>
+              <h1 className="text-3xl font-bold text-foreground">צ'אט פק"ל</h1>
             </div>
             <p className="text-muted-foreground">
-              צ'אט מתקדם לניתוח תובנות, פערי ידע והשפעת שינויים במערכת
+              {role ? ROLE_LABELS[role] : 'העוזר הדיגיטלי למערכת הידע של פק״ל'}
             </p>
           </div>
           
           <div className="flex items-center gap-2">
+            {role && (
+              <Badge variant="secondary" className="gap-1">
+                <User className="h-3 w-3" />
+                {ROLE_LABELS[role]}
+              </Badge>
+            )}
             <Badge variant="outline" className="gap-1">
               <Bot className="h-3 w-3" />
               מצב תובנות
@@ -455,6 +478,10 @@ const Chat = () => {
                             </div>
                           )}
                           
+                          {!message.isUser && (
+                            <CopyPasteActions content={message.content} />
+                          )}
+                          
                           <div className={`text-xs text-muted-foreground mt-1 ${message.isUser ? 'text-left' : 'text-right'}`}>
                             {message.timestamp.toLocaleTimeString('he-IL', { 
                               hour: '2-digit', 
@@ -498,7 +525,7 @@ const Chat = () => {
                   {/* Input Area */}
                   <div className="flex gap-2" dir="rtl">
                     <Input
-                      placeholder="שאל שאלה על תובנות המערכת..."
+                      placeholder="שאל שאלה..."
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyPress={handleKeyPress}
@@ -514,12 +541,19 @@ const Chat = () => {
                     </Button>
                   </div>
                   
-                  {/* Quick Actions */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <TrendingUp className="h-4 w-4" />
-                      <span>פעולות מהירות:</span>
-                    </div>
+                  {/* Suggested Questions - Role-based */}
+                  <SuggestedQuestions 
+                    role={role} 
+                    onQuestionClick={handleQuickAction}
+                  />
+                  
+                  {/* Quick Actions - Fallback for managers */}
+                  {!role && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <TrendingUp className="h-4 w-4" />
+                        <span>פעולות מהירות:</span>
+                      </div>
                     <div className="grid grid-cols-2 gap-2" dir="rtl">
                       <Button
                         variant="outline"
@@ -565,11 +599,14 @@ const Chat = () => {
                         <span>זיהוי סתירות</span>
                       </Button>
                     </div>
-                  </div>
+                    </div>
+                  )}
                   
-                  <div className="text-xs text-muted-foreground text-center">
-                    או הקלד שאלה מותאמת אישית למעלה
-                  </div>
+                  {role && (
+                    <div className="text-xs text-muted-foreground text-center">
+                      או הקלד שאלה מותאמת אישית למעלה
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

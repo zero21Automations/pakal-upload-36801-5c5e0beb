@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.2';
+import { getRoleSystemPrompt } from './role-prompts.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message, org_id, unit_id, mode = 'insights', level_weights } = await req.json();
+    const { message, org_id, unit_id, mode = 'insights', level_weights, user_role = null } = await req.json();
 
     if (!message || !org_id) {
       return new Response(
