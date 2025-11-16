@@ -103,10 +103,10 @@ serve(async (req) => {
         content,
         level,
         metadata,
-        embedding
+        embedding,
+        status
       `)
-      .eq('org_id', org_id)
-      .in('status', statusFilter);
+      .eq('org_id', org_id);
 
     // Add unit filter if specified
     if (unit_id) {
