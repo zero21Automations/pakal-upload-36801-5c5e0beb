@@ -23,7 +23,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Insights Chat - Message: "${message.substring(0, 100)}...", Org: ${org_id}, Mode: ${mode}`);
+    console.log(`Insights Chat - Message: "${message.substring(0, 100)}...", Org: ${org_id}, Mode: ${mode}, Role: ${user_role || 'none'}`);
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -101,10 +101,11 @@ serve(async (req) => {
       });
     }
 
-    // Use knowledge-based RAG chat with streaming
-    const systemPrompt = `אתה עוזר דיגיטלי מומחה במערכת הידע של פק״ל (פיתוח כוח לכידות).
-
-תפקידך: לענות על שאלות בצורה מדויקת ומקצועית על בסיס המידע ממאגר הידע של פק״ל.
+    // Get role-specific system prompt
+    const baseRolePrompt = getRoleSystemPrompt(user_role);
+    
+    // Add knowledge base guidelines for all roles
+    const knowledgeGuidelines = `
 
 היררכיית מקורות (סדר עדיפות):
 1. **רמה 0 (מסמך ליבה)** - תוכן הליבה הרשמי של פק״ל - זוהי המקור הסמכותי ביותר
@@ -112,21 +113,14 @@ serve(async (req) => {
 3. **רמה 2 (L2)** - כלים והדרכות מעשיות - עדיפות בינונית
 4. **רמה 3 (L3)** - מחקרים והקשר רחב - תוספת עומק
 
-עקרונות מנחים:
-- ענה **רק** על בסיס המידע שסופק לך מהמערכת
-- צטט תמיד את המקורות ורמת הידע שלהם
+עקרונות חשובים:
+- ענה על בסיס המידע שסופק לך מהמערכת
+- צטט מקורות רלוונטיים ורמת הידע שלהם
 - אם יש מספר מקורות ברמות שונות - העדף את הרמה הגבוהה יותר
 - אם אין מידע רלוונטי במערכת - אמור זאת בבירור
-- השתמש בשפה ברורה, ישירה ומקצועית
-- הדגש את הנקודות המעשיות והישימות
-- אם יש סתירה בין מקורות - ציין זאת והעדף את הרמה הגבוהה יותר
+- הדגש נקודות מעשיות וישימות`;
 
-
-מבנה תשובה מומלץ:
-1. תשובה ישירה לשאלה
-2. ציטוט מקורות (כולל רמת הידע)
-3. פרטים נוספים או דוגמאות מהמקורות (אם רלוונטי)
-4. המלצות מעשיות (אם רלוונטי)`;
+    const systemPrompt = baseRolePrompt + knowledgeGuidelines;
 
     let contextInfo = '';
     if (searchResults.length > 0) {
