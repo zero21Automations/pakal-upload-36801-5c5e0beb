@@ -13,11 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { RoleSelector } from "@/components/RoleSelector";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useConversation } from "@/hooks/useConversation";
-import { SuggestedQuestions } from "@/components/chat/SuggestedQuestions";
-import { CopyPasteActions } from "@/components/chat/CopyPasteActions";
 import { ContentFilters, ContentFilterState, defaultContentFilters } from "@/components/chat/ContentFilters";
 import { EnhancedCitationCard } from "@/components/chat/EnhancedCitationCard";
-import { FieldExamplesPanel } from "@/components/chat/FieldExamplesPanel";
 import { ConversationsList } from "@/components/chat/ConversationsList";
 import { TypingEffect } from "@/components/chat/TypingEffect";
 import { ROLE_LABELS } from "@/types/roles";
@@ -89,8 +86,6 @@ const Chat = () => {
   const [showCitations, setShowCitations] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [showContentFilters, setShowContentFilters] = useState(false);
-  const [showFieldExamples, setShowFieldExamples] = useState(false);
-  const [generateToolkit, setGenerateToolkit] = useState(false);
   const [contentFilters, setContentFilters] = useState<ContentFilterState>(defaultContentFilters);
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   const [levelWeights, setLevelWeights] = useState({
@@ -183,8 +178,7 @@ const Chat = () => {
             mode: 'knowledge',
             level_weights: levelWeights,
             user_role: role,
-            content_filters: contentFilters,
-            generate_toolkit: generateToolkit
+            content_filters: contentFilters
           }),
         }
       );
@@ -236,8 +230,6 @@ const Chat = () => {
         }
       }
       
-      // Reset toolkit flag after use
-      setGenerateToolkit(false);
       let receivedMetadata: any = null;
       let fullContent = '';
       let assistantMessageId: string | null = null;
@@ -420,14 +412,6 @@ const Chat = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowFieldExamples(!showFieldExamples)}
-            >
-              <FileSearch className="h-4 w-4 ml-1" />
-              דוגמאות שטח
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => setShowCitations(!showCitations)}
             >
               <FileSearch className="h-4 w-4 ml-1" />
@@ -541,11 +525,6 @@ const Chat = () => {
           </div>
         )}
 
-        {showFieldExamples && (
-          <div className="mb-6">
-            <FieldExamplesPanel />
-          </div>
-        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Conversations Sidebar */}
@@ -625,9 +604,6 @@ const Chat = () => {
                             </div>
                           )}
                           
-                          {!message.isUser && (
-                            <CopyPasteActions content={message.content} />
-                          )}
                           
                           <div className={`text-xs text-muted-foreground mt-1 ${message.isUser ? 'text-left' : 'text-right'}`}>
                             {message.timestamp.toLocaleTimeString('he-IL', { 
@@ -688,28 +664,6 @@ const Chat = () => {
                     </Button>
                   </div>
                   
-                  {/* Suggested Questions - Role-based */}
-                  <SuggestedQuestions 
-                    role={role} 
-                    onQuestionClick={handleQuickAction}
-                  />
-                  
-                  {/* New Sprint 3 Actions */}
-                  <div className="flex flex-col gap-2 pt-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        setGenerateToolkit(true);
-                        handleQuickAction('צור לי ערכת כלים מעשית לנושא שאני עובד עליו');
-                      }}
-                      disabled={isLoading}
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      צור ערכת כלים מיקרו
-                    </Button>
-                  </div>
                   
                   {/* Quick Actions - Fallback for managers */}
                   {!role && (
