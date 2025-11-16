@@ -17,46 +17,67 @@ export type Database = {
       chunks: {
         Row: {
           content: string
+          content_category: string | null
           created_at: string
+          difficulty_level: string | null
           embedding: string | null
           id: string
+          is_practical: boolean | null
           level: number
           metadata: Json | null
+          methodology_name: string | null
           org_id: string
           sequence_number: number
           source_id: string
           source_type: string
           status: string
+          target_roles: string[] | null
+          time_required: number | null
+          topic_tags: string[] | null
           unit_id: string | null
           updated_at: string
         }
         Insert: {
           content: string
+          content_category?: string | null
           created_at?: string
+          difficulty_level?: string | null
           embedding?: string | null
           id: string
+          is_practical?: boolean | null
           level: number
           metadata?: Json | null
+          methodology_name?: string | null
           org_id: string
           sequence_number: number
           source_id: string
           source_type: string
           status?: string
+          target_roles?: string[] | null
+          time_required?: number | null
+          topic_tags?: string[] | null
           unit_id?: string | null
           updated_at?: string
         }
         Update: {
           content?: string
+          content_category?: string | null
           created_at?: string
+          difficulty_level?: string | null
           embedding?: string | null
           id?: string
+          is_practical?: boolean | null
           level?: number
           metadata?: Json | null
+          methodology_name?: string | null
           org_id?: string
           sequence_number?: number
           source_id?: string
           source_type?: string
           status?: string
+          target_roles?: string[] | null
+          time_required?: number | null
+          topic_tags?: string[] | null
           unit_id?: string | null
           updated_at?: string
         }
@@ -359,6 +380,17 @@ export type Database = {
         | "company_commander"
         | "platoon_commander"
         | "platoon_cohesion_leader"
+      content_category_type:
+        | "leadership"
+        | "cohesion_methods"
+        | "rear_support"
+        | "field_examples"
+        | "podcasts"
+        | "success_stories"
+        | "theory"
+        | "practical_tools"
+        | "case_studies"
+      difficulty_level_type: "beginner" | "intermediate" | "advanced"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -494,6 +526,18 @@ export const Constants = {
         "platoon_commander",
         "platoon_cohesion_leader",
       ],
+      content_category_type: [
+        "leadership",
+        "cohesion_methods",
+        "rear_support",
+        "field_examples",
+        "podcasts",
+        "success_stories",
+        "theory",
+        "practical_tools",
+        "case_studies",
+      ],
+      difficulty_level_type: ["beginner", "intermediate", "advanced"],
     },
   },
 } as const

@@ -10,12 +10,14 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import CitationCard from "@/components/CitationCard";
 import { RoleSelector } from "@/components/RoleSelector";
 import { useUserRole } from "@/hooks/useUserRole";
 import { SuggestedQuestions } from "@/components/chat/SuggestedQuestions";
 import { CopyPasteActions } from "@/components/chat/CopyPasteActions";
+import { ContentFilters, ContentFilterState, defaultContentFilters } from "@/components/chat/ContentFilters";
+import { EnhancedCitationCard } from "@/components/chat/EnhancedCitationCard";
 import { ROLE_LABELS } from "@/types/roles";
+import { ChunkMetadata } from "@/types/content";
 import { 
   Send, 
   MessageSquare, 
@@ -55,6 +57,7 @@ interface Citation {
   level: number;
   confidence: number;
   excerpt: string;
+  metadata?: ChunkMetadata;
 }
 
 const Chat = () => {
@@ -80,6 +83,8 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showCitations, setShowCitations] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [showContentFilters, setShowContentFilters] = useState(false);
+  const [contentFilters, setContentFilters] = useState<ContentFilterState>(defaultContentFilters);
   const [levelWeights, setLevelWeights] = useState({
     Core: 0.50,
     L1: 0.20,
@@ -313,7 +318,15 @@ const Chat = () => {
               onClick={() => setShowFilters(!showFilters)}
             >
               <SlidersHorizontal className="h-4 w-4 ml-1" />
-              סינון
+              רמות
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowContentFilters(!showContentFilters)}
+            >
+              <SlidersHorizontal className="h-4 w-4 ml-1" />
+              סינון תוכן
             </Button>
             <Button
               variant="outline"
@@ -420,6 +433,15 @@ const Chat = () => {
               </div>
             </div>
           </Card>
+        )}
+
+        {showContentFilters && (
+          <div className="mb-6">
+            <ContentFilters
+              currentFilters={contentFilters}
+              onFiltersChange={setContentFilters}
+            />
+          </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -645,7 +667,7 @@ const Chat = () => {
                             מקורות לתשובה האחרונה ({citations.length}):
                           </div>
                           {citations.map((citation, index) => (
-                            <CitationCard
+                            <EnhancedCitationCard
                               key={`${citation.source_id}-${index}`}
                               citation={citation}
                               onViewSource={handleViewSource}
