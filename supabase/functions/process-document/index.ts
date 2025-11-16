@@ -181,14 +181,14 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
       .update({ processing_status: 'embedding' })
       .eq('id', documentId);
 
-    // Generate embeddings for chunks with memory optimization
-    const maxContentLength = Math.min(content.length, 2000); // Aggressively reduced to prevent memory issues
+    // Generate embeddings for chunks with ultra-aggressive memory optimization
+    const maxContentLength = Math.min(content.length, 800); // Ultra-reduced to 800 chars max
     const contentToProcess = content.slice(0, maxContentLength);
     
     // Clear full content to free memory before processing
     content = '';
     
-    const chunks = chunkText(contentToProcess, 800, 50); // Fewer, larger chunks
+    const chunks = chunkText(contentToProcess, 400, 30); // Much smaller chunks with less overlap
     
     console.log(`Processing ${chunks.length} chunks from ${maxContentLength} characters of content`);
 
@@ -269,8 +269,9 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
             chunksInsertedCount += slice.length;
           }
 
-          // Clear to free memory
-          embeddingData.data = null;
+          // Clear to free memory aggressively
+          rows.length = 0;
+          rows = [];
 
           break;
         } catch (embeddingError) {
@@ -285,9 +286,9 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
         }
       }
 
-      // Small delay between batches to prevent rate limiting and memory spikes
+      // Longer delay between batches for garbage collection and memory cleanup
       if (i + batchSize < chunks.length) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
