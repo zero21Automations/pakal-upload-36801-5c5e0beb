@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message, org_id, unit_id, mode = 'insights' } = await req.json();
+    const { message, org_id, unit_id, mode = 'insights', level_weights } = await req.json();
 
     if (!message || !org_id) {
       return new Response(
@@ -51,7 +51,8 @@ serve(async (req) => {
           unit_id,
           mode,
           top_k: 6,
-          include_drafts: mode === 'sandbox'
+          include_drafts: mode === 'sandbox',
+          level_weights: level_weights || { Core: 0.50, L1: 0.20, L2: 0.08, L3: 0 }
         }),
       });
 

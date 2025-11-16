@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import CitationCard from "@/components/CitationCard";
@@ -19,7 +20,8 @@ import {
   TrendingUp,
   FileSearch,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  SlidersHorizontal
 } from "lucide-react";
 
 interface ChatMessage {
@@ -70,6 +72,13 @@ const Chat = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showCitations, setShowCitations] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [levelWeights, setLevelWeights] = useState({
+    Core: 0.50,
+    L1: 0.20,
+    L2: 0.08,
+    L3: 0.00
+  });
 
   // Auto-scroll to bottom when new messages are added
   const scrollToBottom = () => {
@@ -122,7 +131,8 @@ const Chat = () => {
             message: messageContent,
             org_id: user?.id || 'temp-org-id',
             unit_id: 'temp-unit-id',
-            mode: 'knowledge'
+            mode: 'knowledge',
+            level_weights: levelWeights
           }),
         }
       );
@@ -277,6 +287,14 @@ const Chat = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <SlidersHorizontal className="h-4 w-4 ml-1" />
+              סינון
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowCitations(!showCitations)}
             >
               <FileSearch className="h-4 w-4 ml-1" />
@@ -284,6 +302,102 @@ const Chat = () => {
             </Button>
           </div>
         </div>
+
+        {showFilters && (
+          <Card className="mb-6 p-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">עדיפות רמות מסמכים</h3>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setLevelWeights({ Core: 0.50, L1: 0.20, L2: 0.08, L3: 0.00 })}
+                  >
+                    ברירת מחדל
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setLevelWeights({ Core: 0.30, L1: 0.30, L2: 0.30, L3: 0.10 })}
+                  >
+                    איזון שווה
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium">מסמך ליבה (Core)</label>
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {levelWeights.Core.toFixed(2)}
+                    </Badge>
+                  </div>
+                  <Slider
+                    value={[levelWeights.Core]}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, Core: value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium">רמה 1 (L1)</label>
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {levelWeights.L1.toFixed(2)}
+                    </Badge>
+                  </div>
+                  <Slider
+                    value={[levelWeights.L1]}
+                    min={0}
+                    max={0.5}
+                    step={0.01}
+                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, L1: value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium">רמה 2 (L2)</label>
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {levelWeights.L2.toFixed(2)}
+                    </Badge>
+                  </div>
+                  <Slider
+                    value={[levelWeights.L2]}
+                    min={0}
+                    max={0.3}
+                    step={0.01}
+                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, L2: value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium">רמה 3 (L3)</label>
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {levelWeights.L3.toFixed(2)}
+                    </Badge>
+                  </div>
+                  <Slider
+                    value={[levelWeights.L3]}
+                    min={0}
+                    max={0.2}
+                    step={0.01}
+                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, L3: value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground pt-2">
+                <span className="font-medium">משמעות:</span> ערכים גבוהים יותר נותנים עדיפות למסמכים מרמה זו בתוצאות החיפוש
+              </div>
+            </div>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Chat Area */}
