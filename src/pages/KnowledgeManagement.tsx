@@ -363,8 +363,8 @@ export default function KnowledgeManagement() {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .eq('user_id', user.id)
         .eq('document_type', 'content')
+        .eq('status', 'מאושר')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
