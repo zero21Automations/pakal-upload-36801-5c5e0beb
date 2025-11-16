@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { SystemInsightsWindow } from "@/components/SystemInsightsWindow";
 import { Navigation } from "@/components/Navigation";
 import { DocumentPreview } from "@/components/DocumentPreview";
@@ -20,7 +20,8 @@ import {
   Search,
   Download,
   Filter,
-  PlayCircle
+  PlayCircle,
+  RefreshCw
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,6 +107,9 @@ export default function KnowledgeManagement() {
 
   // Manual processing state
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
+  
+  // Polling interval ref
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Pakal terms state
   const [pakalTerms, setPakalTerms] = useState<PakalTerm[]>([]);
@@ -234,6 +238,33 @@ export default function KnowledgeManagement() {
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
+
+  // Polling fallback for processing documents
+  useEffect(() => {
+    const hasProcessingDocs = contentDocs.some(doc => 
+      ['pending', 'extracting', 'classifying', 'embedding', 'processing'].includes(doc.processing_status || '')
+    ) || (coreDoc && ['pending', 'extracting', 'classifying', 'embedding', 'processing'].includes(coreDoc.processing_status || ''));
+
+    if (hasProcessingDocs && !pollingIntervalRef.current) {
+      // Start polling every 3 seconds
+      pollingIntervalRef.current = setInterval(() => {
+        console.log('Polling for document updates...');
+        fetchContentDocuments();
+        if (coreDoc) fetchCoreDocument();
+      }, 3000);
+    } else if (!hasProcessingDocs && pollingIntervalRef.current) {
+      // Stop polling when no documents are processing
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [contentDocs, coreDoc, user]);
 
   const fetchCoreDocument = async () => {
     try {
@@ -471,7 +502,7 @@ export default function KnowledgeManagement() {
       // Trigger processing for embeddings
       if (docData) {
         try {
-          await supabase.functions.invoke('process-document', {
+          await supabase.functions.invoke('trigger-document-processing', {
             body: { documentId: docData.id }
           });
           console.log('Document processing triggered');
@@ -795,10 +826,15 @@ export default function KnowledgeManagement() {
       // Trigger processing for embeddings
       if (docData) {
         try {
-          await supabase.functions.invoke('process-document', {
+          await supabase.functions.invoke('trigger-document-processing', {
             body: { documentId: docData.id }
           });
           console.log('Document processing triggered');
+          
+          toast({
+            title: "מעבד עכשיו...",
+            description: "המסמך נשלח לעיבוד",
+          });
         } catch (procError) {
           console.error('Error triggering processing:', procError);
         }
@@ -870,8 +906,8 @@ export default function KnowledgeManagement() {
       }
 
       toast({
-        title: "העיבוד התחיל",
-        description: "המסמך מעובד כעת. תוכל לעקוב אחר ההתקדמות.",
+        title: "מעבד עכשיו...",
+        description: "המסמך נשלח לעיבוד מחדש",
       });
 
       // Refresh document list to show updated status
@@ -1146,7 +1182,21 @@ export default function KnowledgeManagement() {
                 <div className="flex items-center justify-between">
                   <CardTitle>מסמכי תוכן</CardTitle>
                   <div className="flex gap-2">
-                  <Dialog 
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => {
+                      fetchContentDocuments();
+                      toast({
+                        title: "רענון",
+                        description: "רשימת המסמכים רועננה",
+                      });
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4 ml-1" />
+                    רענן
+                  </Button>
+                  <Dialog
                     open={isUploadContentDialogOpen} 
                     onOpenChange={(open) => {
                       setIsUploadContentDialogOpen(open);

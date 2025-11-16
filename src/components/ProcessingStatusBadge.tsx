@@ -71,6 +71,13 @@ export const ProcessingStatusBadge = ({ status, error, chunksCount }: Processing
     );
   }
 
-  return <Badge variant="outline">{status}</Badge>;
+  // Unknown status - log for debugging and treat as pending
+  console.warn('Unknown processing status:', status);
+  return (
+    <Badge variant="secondary" className="flex items-center gap-1">
+      <Loader2 className="h-3 w-3 animate-spin" />
+      ממתין
+    </Badge>
+  );
 };
 
