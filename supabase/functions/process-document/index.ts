@@ -184,19 +184,24 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
     
     console.log(`Processing ${chunks.length} chunks from ${maxContentLength} characters of content`);
 
+    // Numeric level for storage and counter
+    const levelNum = classification.level === 'L1' ? 1 : classification.level === 'L2' ? 2 : 3;
+    let chunksInsertedCount = 0;
+
     // Process embeddings in small batches to avoid memory issues
-    const batchSize = 8; // Smaller batch size for memory constraints
+    const batchSize = 6; // Further reduced for stability
     const allEmbeddings: Array<{ embedding: number[]; index: number }> = [];
     
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
+      const batchStartIndex = i;
       let embeddingAttempts = 0;
       const maxEmbeddingAttempts = 3;
-      
+
       while (embeddingAttempts < maxEmbeddingAttempts) {
         try {
-          console.log(`Processing embedding batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(chunks.length/batchSize)}, attempt ${embeddingAttempts + 1}`);
-          
+          console.log(`Embedding batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}, attempt ${embeddingAttempts + 1}`);
+
           const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
             method: 'POST',
             headers: {
@@ -213,77 +218,73 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
             const errorData = await embeddingResponse.json();
             throw new Error(`OpenAI Embeddings error: ${errorData.error?.message || 'Unknown error'}`);
           }
-          
+
           const embeddingData = await embeddingResponse.json();
-          allEmbeddings.push(...embeddingData.data);
-          
-          // Clear response to free memory
+          const data = embeddingData.data as Array<{ embedding: number[] }>;
+
+          // Build rows for this batch and upsert immediately in tiny groups
+          const upsertBatchSize = 3;
+          const rows = data.map((d, j) => {
+            const chunkIndex = batchStartIndex + j;
+            const chunkText = batch[j];
+            return {
+              id: `${documentId}:${chunkIndex}`,
+              org_id: document.user_id,
+              unit_id: null,
+              level: levelNum,
+              metadata: {
+                filename: document.filename,
+                title: document.title,
+                file_path: document.file_path,
+                chunk_index: chunkIndex,
+                total_chunks: chunks.length,
+                content_length: chunkText.length
+              },
+              embedding: d.embedding,
+              source_id: documentId,
+              status: 'approved',
+              content: chunkText,
+              sequence_number: chunkIndex,
+            } as any;
+          });
+
+          for (let k = 0; k < rows.length; k += upsertBatchSize) {
+            const slice = rows.slice(k, k + upsertBatchSize);
+            const { error: chunkUpsertError } = await supabaseClient
+              .from('chunks')
+              .upsert(slice, { onConflict: 'id' });
+
+            if (chunkUpsertError) {
+              console.error('Failed to upsert chunk slice:', chunkUpsertError);
+              throw new Error(`Failed to store chunk slice ${Math.floor(k / upsertBatchSize) + 1}: ${chunkUpsertError.message}`);
+            }
+            chunksInsertedCount += slice.length;
+          }
+
+          // Clear to free memory
           embeddingData.data = null;
+          (rows as unknown as any[]) = [];
+
           break;
-          
         } catch (embeddingError) {
           embeddingAttempts++;
           console.error(`Embedding attempt ${embeddingAttempts} failed:`, embeddingError);
-          
+
           if (embeddingAttempts >= maxEmbeddingAttempts) {
             throw new Error(`Embedding generation failed after ${maxEmbeddingAttempts} attempts: ${embeddingError instanceof Error ? embeddingError.message : String(embeddingError)}`);
           }
-          
-          // Wait before retry
+
           await new Promise(resolve => setTimeout(resolve, 1000 * embeddingAttempts));
         }
       }
-      
-      // Small delay between batches to prevent rate limiting
+
+      // Small delay between batches to prevent rate limiting and memory spikes
       if (i + batchSize < chunks.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 120));
       }
     }
 
-    // Prepare and upsert chunk rows into the database
-    const levelNum = classification.level === 'L1' ? 1 : classification.level === 'L2' ? 2 : 3;
-    
-    if (allEmbeddings.length !== chunks.length) {
-      throw new Error(`Embedding count mismatch: ${allEmbeddings.length} embeddings vs ${chunks.length} chunks`);
-    }
-    
-    const chunkRows = chunks.map((chunkText: string, i: number) => ({
-      id: `${documentId}:${i}`,
-      org_id: document.user_id, // aligns with RLS expecting org_id == auth.uid()
-      unit_id: null,
-      level: levelNum,
-      metadata: {
-        filename: document.filename,
-        title: document.title,
-        file_path: document.file_path,
-        chunk_index: i,
-        total_chunks: chunks.length,
-        content_length: chunkText.length
-      },
-      embedding: allEmbeddings[i].embedding,
-      source_id: documentId,
-      status: 'approved',
-      content: chunkText,
-      sequence_number: i,
-    }));
-
-    console.log(`Attempting to upsert ${chunkRows.length} chunks`);
-    
-    // Upsert chunks in smaller batches to avoid database timeouts
-    const dbBatchSize = 5; // Smaller batches for memory efficiency
-    for (let i = 0; i < chunkRows.length; i += dbBatchSize) {
-      const batch = chunkRows.slice(i, i + dbBatchSize);
-      const { error: chunkUpsertError } = await supabaseClient
-        .from('chunks')
-        .upsert(batch, { onConflict: 'id' });
-
-      if (chunkUpsertError) {
-        console.error('Failed to upsert chunk batch:', chunkUpsertError);
-        throw new Error(`Failed to store chunk batch ${Math.floor(i/dbBatchSize) + 1}: ${chunkUpsertError.message}`);
-      }
-      
-      console.log(`Upserted chunk batch ${Math.floor(i/dbBatchSize) + 1}/${Math.ceil(chunkRows.length/dbBatchSize)}`);
-    }
+    console.log(`Finished embedding + upsert pipeline. Inserted ${chunksInsertedCount} chunks`);
 
     // Update document with AI analysis and numeric level
     const { error: updateError } = await supabaseClient
@@ -298,7 +299,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
         processed_date: new Date().toISOString(),
         processing_status: 'completed',
         processed_at: new Date().toISOString(),
-        chunks_count: chunkRows.length
+        chunks_count: chunksInsertedCount
       })
       .eq('id', documentId);
 
