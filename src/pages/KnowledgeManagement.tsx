@@ -33,6 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
+import { ProcessingStatusBadge } from "@/components/ProcessingStatusBadge";
 
 interface CoreDocument {
   id: string;
@@ -986,29 +987,15 @@ export default function KnowledgeManagement() {
                   <div className="flex items-center gap-3">
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5" />
-                      מסמך ליבה – פק״ל במילואים 2025
-                    </CardTitle>
-                    {coreDoc?.processing_status && (
-                      <Badge 
-                        variant={
-                          coreDoc.processing_status === 'completed' ? 'default' :
-                          coreDoc.processing_status === 'processing' ? 'secondary' :
-                          coreDoc.processing_status === 'failed' ? 'destructive' :
-                          'outline'
-                        }
-                        className="flex items-center gap-1"
-                      >
-                        {coreDoc.processing_status === 'processing' && (
-                          <span className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
-                        )}
-                        {coreDoc.processing_status === 'completed' && <CheckCircle className="h-3 w-3" />}
-                        {coreDoc.processing_status === 'failed' && <XCircle className="h-3 w-3" />}
-                        {coreDoc.processing_status === 'processing' ? 'מעבד...' :
-                         coreDoc.processing_status === 'completed' ? `עובד (${coreDoc.chunks_count} קטעים)` :
-                         coreDoc.processing_status === 'failed' ? 'נכשל' :
-                         'ממתין'}
-                      </Badge>
-                    )}
+                    מסמך ליבה – פק״ל במילואים 2025
+                  </CardTitle>
+                  {coreDoc?.processing_status && (
+                    <ProcessingStatusBadge 
+                      status={coreDoc.processing_status}
+                      error={coreDoc.processing_error}
+                      chunksCount={coreDoc.chunks_count}
+                    />
+                  )}
                   </div>
                   <div className="flex gap-2">
                     <Dialog open={isUploadCoreDialogOpen} onOpenChange={setIsUploadCoreDialogOpen}>
@@ -1242,29 +1229,15 @@ export default function KnowledgeManagement() {
                                 {formatDocLevel(doc.document_level)}
                               </Badge>
                               <Badge variant={doc.status === 'מאושר' ? 'default' : 'secondary'}>
-                                {doc.status}
-                              </Badge>
-                              {doc.processing_status && (
-                                <Badge 
-                                  variant={
-                                    doc.processing_status === 'completed' ? 'default' :
-                                    doc.processing_status === 'processing' ? 'secondary' :
-                                    doc.processing_status === 'failed' ? 'destructive' :
-                                    'outline'
-                                  }
-                                  className="flex items-center gap-1 text-xs"
-                                >
-                                  {doc.processing_status === 'processing' && (
-                                    <span className="animate-spin h-2 w-2 border border-current border-t-transparent rounded-full" />
-                                  )}
-                                  {doc.processing_status === 'completed' && <CheckCircle className="h-2 w-2" />}
-                                  {doc.processing_status === 'failed' && <XCircle className="h-2 w-2" />}
-                                  {doc.processing_status === 'processing' ? 'מעבד' :
-                                   doc.processing_status === 'completed' ? `${doc.chunks_count} קטעים` :
-                                   doc.processing_status === 'failed' ? 'נכשל' :
-                                   'ממתין'}
-                                </Badge>
-                              )}
+                              {doc.status}
+                            </Badge>
+                            {doc.processing_status && (
+                              <ProcessingStatusBadge 
+                                status={doc.processing_status}
+                                error={doc.processing_error}
+                                chunksCount={doc.chunks_count}
+                              />
+                            )}
                               <span className="text-xs text-muted-foreground">
                                 {(doc.file_size / 1024).toFixed(1)} KB
                               </span>
