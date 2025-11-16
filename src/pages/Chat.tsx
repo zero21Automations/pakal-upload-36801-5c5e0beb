@@ -16,6 +16,7 @@ import { SuggestedQuestions } from "@/components/chat/SuggestedQuestions";
 import { CopyPasteActions } from "@/components/chat/CopyPasteActions";
 import { ContentFilters, ContentFilterState, defaultContentFilters } from "@/components/chat/ContentFilters";
 import { EnhancedCitationCard } from "@/components/chat/EnhancedCitationCard";
+import { FieldExamplesPanel } from "@/components/chat/FieldExamplesPanel";
 import { ROLE_LABELS } from "@/types/roles";
 import { ChunkMetadata } from "@/types/content";
 import { 
@@ -84,6 +85,8 @@ const Chat = () => {
   const [showCitations, setShowCitations] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [showContentFilters, setShowContentFilters] = useState(false);
+  const [showFieldExamples, setShowFieldExamples] = useState(false);
+  const [generateToolkit, setGenerateToolkit] = useState(false);
   const [contentFilters, setContentFilters] = useState<ContentFilterState>(defaultContentFilters);
   const [levelWeights, setLevelWeights] = useState({
     Core: 0.50,
@@ -150,7 +153,10 @@ const Chat = () => {
             org_id: user?.id || 'temp-org-id',
             unit_id: 'temp-unit-id',
             mode: 'knowledge',
-            level_weights: levelWeights
+            level_weights: levelWeights,
+            user_role: role,
+            content_filters: contentFilters,
+            generate_toolkit: generateToolkit
           }),
         }
       );
@@ -160,15 +166,52 @@ const Chat = () => {
       }
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
       if (!reader) {
-        throw new Error('No reader available');
+        throw new Error('Failed to initialize reader');
       }
 
+      const decoder = new TextDecoder();
       let buffer = '';
-      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              
+              setMessages(prev => {
+                const newMessages = [...prev];
+                const lastMessage = newMessages[newMessages.length - 1];
+                
+                if (lastMessage && !lastMessage.isUser) {
+                  lastMessage.content = parsed.content || lastMessage.content;
+                  lastMessage.citations = parsed.citations || lastMessage.citations;
+                  lastMessage.metadata = parsed.metadata || lastMessage.metadata;
+                }
+                
+                return newMessages;
+              });
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e);
+            }
+          }
+        }
+      }
+      
+      // Reset toolkit flag after use
+      setGenerateToolkit(false);
       let receivedMetadata: any = null;
+      let fullContent = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -331,6 +374,14 @@ const Chat = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setShowFieldExamples(!showFieldExamples)}
+            >
+              <FileSearch className="h-4 w-4 ml-1" />
+              דוגמאות שטח
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowCitations(!showCitations)}
             >
               <FileSearch className="h-4 w-4 ml-1" />
@@ -441,6 +492,12 @@ const Chat = () => {
               currentFilters={contentFilters}
               onFiltersChange={setContentFilters}
             />
+          </div>
+        )}
+
+        {showFieldExamples && (
+          <div className="mb-6">
+            <FieldExamplesPanel />
           </div>
         )}
 
@@ -568,6 +625,23 @@ const Chat = () => {
                     role={role} 
                     onQuestionClick={handleQuickAction}
                   />
+                  
+                  {/* New Sprint 3 Actions */}
+                  <div className="flex flex-col gap-2 pt-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        setGenerateToolkit(true);
+                        handleQuickAction('צור לי ערכת כלים מעשית לנושא שאני עובד עליו');
+                      }}
+                      disabled={isLoading}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      צור ערכת כלים מיקרו
+                    </Button>
+                  </div>
                   
                   {/* Quick Actions - Fallback for managers */}
                   {!role && (
