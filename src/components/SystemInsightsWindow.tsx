@@ -55,24 +55,14 @@ export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => 
     });
   };
 
-  const mockAnalytics = {
-    totalDocuments: 1247,
-    pendingApprovals: 8,
-    lastUpdate: "לפני 5 דקות",
-    topMissingTopics: [
-      { topic: 'איך מחזקים לכידות פלוגתית?', count: 47, hasL1: false },
-      { topic: 'טיפול בקונפליקטים בצוות', count: 29, hasL1: false },
-      { topic: 'ליווי משפחות בזמן שירות', count: 23, hasL1: false },
-    ],
-    levelMix: { l1Rate: 0.34, l2Rate: 0.45, l3Rate: 0.21 },
-    staleDocuments: [
-      { title: 'מדריך הדרכה מתקדמת', lastAccessed: '2024-01-10', hits: 0 },
-      { title: 'נהלי בטיחות מעודכנים', lastAccessed: '2024-01-15', hits: 2 },
-    ],
-    flaggedContent: [
-      { title: 'מסמך עם מידע רגיש', flagType: 'PII', severity: 'high' as const },
-      { title: 'מדריך כפול - גרסה 1', flagType: 'duplicate', severity: 'medium' as const },
-    ]
+  const analytics = {
+    totalDocuments: 0,
+    pendingApprovals: 0,
+    lastUpdate: "-",
+    topMissingTopics: [],
+    levelMix: { l1Rate: 0, l2Rate: 0, l3Rate: 0 },
+    staleDocuments: [],
+    flaggedContent: []
   };
 
   return (
@@ -121,15 +111,15 @@ export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => 
             <CardContent className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>סה״כ מסמכים</span>
-                <Badge variant="outline">{mockAnalytics.totalDocuments.toLocaleString()}</Badge>
+                <Badge variant="outline">{analytics.totalDocuments.toLocaleString()}</Badge>
               </div>
               <div className="flex justify-between text-sm">
                 <span>ממתינים לאישור</span>
-                <Badge variant="secondary">{mockAnalytics.pendingApprovals}</Badge>
+                <Badge variant="secondary">{analytics.pendingApprovals}</Badge>
               </div>
               <div className="flex justify-between text-sm">
                 <span>עודכן</span>
-                <span className="text-muted-foreground">{mockAnalytics.lastUpdate}</span>
+                <span className="text-muted-foreground">{analytics.lastUpdate}</span>
               </div>
             </CardContent>
           </Card>
@@ -143,21 +133,25 @@ export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => 
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {mockAnalytics.topMissingTopics.map((topic, index) => (
-                <div key={index} className="text-xs space-y-1">
-                  <div className="flex items-start justify-between">
-                    <span className="text-muted-foreground leading-tight">{topic.topic}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {topic.count}
-                    </Badge>
+              {analytics.topMissingTopics.length === 0 ? (
+                <p className="text-xs text-muted-foreground">אין פערי ידע זמינים</p>
+              ) : (
+                analytics.topMissingTopics.map((topic, index) => (
+                  <div key={index} className="text-xs space-y-1">
+                    <div className="flex items-start justify-between">
+                      <span className="text-muted-foreground leading-tight">{topic.topic}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {topic.count}
+                      </Badge>
+                    </div>
+                    {!topic.hasL1 && (
+                      <Badge variant="destructive" className="text-xs">
+                        חסר L1
+                      </Badge>
+                    )}
                   </div>
-                  {!topic.hasL1 && (
-                    <Badge variant="destructive" className="text-xs">
-                      חסר L1
-                    </Badge>
-                  )}
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -170,22 +164,26 @@ export const SystemInsightsWindow = ({ onClose }: SystemInsightsWindowProps) => 
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {mockAnalytics.flaggedContent.map((item, index) => (
-                <div key={index} className="text-xs space-y-1">
-                  <div className="font-medium text-muted-foreground">{item.title}</div>
-                  <div className="flex gap-1">
-                    <Badge 
-                      variant={item.severity === 'high' ? 'destructive' : 'secondary'}
-                      className="text-xs"
-                    >
-                      {item.flagType}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {item.severity}
-                    </Badge>
+              {analytics.flaggedContent.length === 0 ? (
+                <p className="text-xs text-muted-foreground">אין תוכן מדוגל</p>
+              ) : (
+                analytics.flaggedContent.map((item, index) => (
+                  <div key={index} className="text-xs space-y-1">
+                    <div className="font-medium text-muted-foreground">{item.title}</div>
+                    <div className="flex gap-1">
+                      <Badge 
+                        variant={item.severity === 'high' ? 'destructive' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {item.flagType}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {item.severity}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
