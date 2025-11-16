@@ -29,10 +29,10 @@ serve(async (req) => {
     documentId = body.documentId;
     console.log('Processing document:', documentId);
 
-    // Update status to processing
+    // Update status to extracting
     await supabaseClient
       .from('documents')
-      .update({ processing_status: 'processing', processing_error: null })
+      .update({ processing_status: 'extracting', processing_error: null })
       .eq('id', documentId);
 
     // Get document from database
@@ -50,24 +50,16 @@ serve(async (req) => {
       throw new Error('Document not found');
     }
 
-    // Get file content from storage
-    const { data: fileData } = await supabaseClient.storage
-      .from('documents')
-      .download(document.file_path);
-
-    if (!fileData) {
-      throw new Error('File not found in storage');
-    }
-
-    // Extract text using preview-document function (works for all file types)
+    // Extract text using preview-document (no file download needed)
     let content = '';
     
     try {
-      const formData = new FormData();
-      formData.append('file', fileData, document.filename);
-      
       const { data: previewData, error: previewError } = await supabaseClient.functions.invoke('preview-document', {
-        body: formData
+        body: {
+          bucket: 'documents',
+          path: document.file_path,
+          filename: document.filename
+        }
       });
       
       if (previewError || !previewData?.fullContent) {
@@ -84,6 +76,12 @@ serve(async (req) => {
     if (!content || content.trim().length < 10) {
       throw new Error('No meaningful content extracted from document');
     }
+
+    // Update status to classifying
+    await supabaseClient
+      .from('documents')
+      .update({ processing_status: 'classifying' })
+      .eq('id', documentId);
 
     // AI Classification using GPT-4o-mini with retry logic
     let classification;
@@ -177,9 +175,19 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
     }
 
 
+    // Update status to embedding
+    await supabaseClient
+      .from('documents')
+      .update({ processing_status: 'embedding' })
+      .eq('id', documentId);
+
     // Generate embeddings for chunks with memory optimization
     const maxContentLength = Math.min(content.length, 6000); // Further reduced to prevent compute/memory issues
     const contentToProcess = content.slice(0, maxContentLength);
+    
+    // Clear full content to free memory before processing
+    content = '';
+    
     const chunks = chunkText(contentToProcess, 700, 80); // Fewer, larger chunks
     
     console.log(`Processing ${chunks.length} chunks from ${maxContentLength} characters of content`);
@@ -282,6 +290,9 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
         await new Promise(resolve => setTimeout(resolve, 220));
       }
     }
+    
+    // Clear chunks array to free memory
+    chunks.length = 0;
 
     console.log(`Finished embedding + upsert pipeline. Inserted ${chunksInsertedCount} chunks`);
 
