@@ -146,7 +146,14 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           rawContent = rawContent.replace(/```\s*/, '').replace(/\s*```$/, '');
         }
         
-        classification = JSON.parse(rawContent.trim());
+        // Fix Hebrew quotation marks that break JSON parsing
+        // Replace standalone Hebrew quotes and problematic patterns
+        const trimmedContent = rawContent.trim()
+          .replace(/״/g, '') // Remove Hebrew opening quotes
+          .replace(/״/g, '') // Remove Hebrew closing quotes  
+          .replace(/פק"ל/g, 'פקל'); // Replace the specific problematic term
+        
+        classification = JSON.parse(trimmedContent);
         
         // Validate classification structure
         if (!classification.level || !classification.confidence || !classification.reasoning) {
