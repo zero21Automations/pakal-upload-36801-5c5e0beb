@@ -185,24 +185,40 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
     const levelNum = classification.level === 'L1' ? 1 : classification.level === 'L2' ? 2 : 3;
     let chunksInsertedCount = 0;
 
-    // Graceful fallback: try embeddings with ultra-conservative settings, but don't fail the whole pipeline
+    // Chunk the content into manageable pieces
+    const chunkSize = 1500; // Characters per chunk
+    const chunkOverlap = 200; // Overlap between chunks
+    const chunks: string[] = [];
+    
+    // Split content into chunks with overlap
+    for (let i = 0; i < content.length; i += chunkSize - chunkOverlap) {
+      const chunk = content.slice(i, Math.min(i + chunkSize, content.length));
+      if (chunk.trim().length > 0) {
+        chunks.push(chunk);
+      }
+    }
+    
+    console.log(`Split content (${content.length} chars) into ${chunks.length} chunks`);
+    
+    // Update status to embedding
+    await supabaseClient
+      .from('documents')
+      .update({ processing_status: 'embedding' })
+      .eq('id', documentId);
+
+    // Process embeddings in batches to manage memory
+    const batchSize = 10; // Process 10 chunks at a time
+    
     try {
-      // Generate embeddings for chunks with EXTREME memory optimization to avoid OOM
-      const maxContentLength = Math.min(content.length, 300); // Hyper-reduced to 300 chars max
-      const contentToProcess = content.slice(0, maxContentLength);
-      
-      // Clear full content to free memory before processing
-      content = '';
-      
-      // Create single chunk only - no overlap needed for such small content
-      const chunks = [contentToProcess]; // Single chunk to minimize memory
-      
-      console.log(`Processing 1 chunk from ${maxContentLength} characters of content`);
 
-      // Process the single chunk to avoid memory issues
-      try {
-        console.log('Embedding single chunk attempt');
+      // Process chunks in batches
+      for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize, chunks.length);
+        const batchChunks = chunks.slice(batchStart, batchEnd);
+        
+        console.log(`Processing batch ${Math.floor(batchStart / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)} (${batchChunks.length} chunks)`);
 
+        // Get embeddings for this batch
         const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
           method: 'POST',
           headers: {
@@ -211,7 +227,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           },
           body: JSON.stringify({
             model: 'text-embedding-3-small',
-            input: chunks
+            input: batchChunks
           }),
         });
 
@@ -221,44 +237,45 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
         }
 
         const embeddingData = await embeddingResponse.json();
-        const data = embeddingData.data as Array<{ embedding: number[] }>;
+        const embeddings = embeddingData.data as Array<{ embedding: number[] }>;
 
-        const row = {
-          id: `${documentId}:0`,
-          org_id: document.user_id,
-          unit_id: null,
-          level: levelNum,
-          metadata: {
-            filename: document.filename,
-            title: document.title,
-            file_path: document.file_path,
-            chunk_index: 0,
-            total_chunks: 1,
-            content_length: chunks[0].length
-          },
-          embedding: data[0].embedding,
-          source_id: documentId,
-          status: 'approved',
-          source_type: 'content_document',
-          content: chunks[0],
-          sequence_number: 0,
-        } as any;
+        // Prepare rows for this batch
+        const rows = batchChunks.map((chunk, idx) => {
+          const chunkIndex = batchStart + idx;
+          return {
+            id: `${documentId}:${chunkIndex}`,
+            org_id: document.user_id,
+            unit_id: null,
+            level: levelNum,
+            metadata: {
+              filename: document.filename,
+              title: document.title,
+              file_path: document.file_path,
+              chunk_index: chunkIndex,
+              total_chunks: chunks.length,
+              content_length: chunk.length
+            },
+            embedding: embeddings[idx].embedding,
+            source_id: documentId,
+            status: 'approved',
+            source_type: 'content_document',
+            content: chunk,
+            sequence_number: chunkIndex,
+          } as any;
+        });
 
+        // Insert batch into database
         const { error: chunkUpsertError } = await supabaseClient
           .from('chunks')
-          .upsert([row], { onConflict: 'id' });
+          .upsert(rows, { onConflict: 'id' });
 
         if (chunkUpsertError) {
-          console.error('Failed to upsert chunk:', chunkUpsertError);
-          throw new Error(`Failed to store chunk: ${chunkUpsertError.message}`);
+          console.error('Failed to upsert chunks:', chunkUpsertError);
+          throw new Error(`Failed to store chunks: ${chunkUpsertError.message}`);
         }
         
-        chunksInsertedCount = 1;
-        console.log('Successfully embedded and stored 1 chunk');
-
-      } catch (embeddingError) {
-        console.error('Embedding failed:', embeddingError);
-        throw embeddingError;
+        chunksInsertedCount += batchChunks.length;
+        console.log(`Batch complete. Total chunks inserted so far: ${chunksInsertedCount}`);
       }
 
       console.log(`Finished embedding + upsert pipeline. Inserted ${chunksInsertedCount} chunks`);
