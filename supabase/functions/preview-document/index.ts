@@ -33,15 +33,14 @@ serve(async (req) => {
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
       } else if (fileType === 'pdf') {
-        // Use @pdf/pdftext for PDF files (Deno + Edge-friendly)
-        const { pdfText } = await import('jsr:@pdf/pdftext@1.3.2');
+        // Use unpdf for PDF files (edge-function compatible)
+        const { extractText } = await import('https://esm.sh/unpdf@0.11.0');
         const arrayBuffer = await file.arrayBuffer();
-        const u8 = new Uint8Array(arrayBuffer);
-        const pages: Record<string | number, string> = await pdfText(u8);
-        content = Object.keys(pages)
-          .sort((a, b) => Number(a) - Number(b))
-          .map((k) => pages[k as keyof typeof pages])
-          .join('\n\n');
+        const result = await extractText(new Uint8Array(arrayBuffer));
+        // unpdf returns { text: string | string[], ... }
+        const text = result.text;
+        content = Array.isArray(text) ? text.join('\n\n') : String(text || '');
+        console.log('PDF extraction result type:', typeof result.text, 'length:', content.length);
       } else {
         // Fallback for text files
         content = await file.text();
