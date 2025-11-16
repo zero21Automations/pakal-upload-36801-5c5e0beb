@@ -178,9 +178,9 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
 
     // Generate embeddings for chunks with memory optimization
-    const maxContentLength = Math.min(content.length, 10000); // Reduced to prevent memory issues
+    const maxContentLength = Math.min(content.length, 6000); // Further reduced to prevent compute/memory issues
     const contentToProcess = content.slice(0, maxContentLength);
-    const chunks = chunkText(contentToProcess, 500, 50); // Larger chunks = fewer total chunks
+    const chunks = chunkText(contentToProcess, 700, 80); // Fewer, larger chunks
     
     console.log(`Processing ${chunks.length} chunks from ${maxContentLength} characters of content`);
 
@@ -189,7 +189,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
     let chunksInsertedCount = 0;
 
     // Process embeddings in small batches to avoid memory issues
-    const batchSize = 6; // Further reduced for stability
+    const batchSize = 3; // Very small batch size
     const allEmbeddings: Array<{ embedding: number[]; index: number }> = [];
     
     for (let i = 0; i < chunks.length; i += batchSize) {
@@ -222,7 +222,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           const embeddingData = await embeddingResponse.json();
           const data = embeddingData.data as Array<{ embedding: number[] }>;
 
-          const upsertBatchSize = 3;
+          const upsertBatchSize = 1;
           let rows = data.map((d, j) => {
             const chunkIndex = batchStartIndex + j;
             const chunkText = batch[j];
@@ -279,7 +279,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
       // Small delay between batches to prevent rate limiting and memory spikes
       if (i + batchSize < chunks.length) {
-        await new Promise(resolve => setTimeout(resolve, 120));
+        await new Promise(resolve => setTimeout(resolve, 220));
       }
     }
 
