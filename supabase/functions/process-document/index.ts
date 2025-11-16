@@ -222,9 +222,8 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           const embeddingData = await embeddingResponse.json();
           const data = embeddingData.data as Array<{ embedding: number[] }>;
 
-          // Build rows for this batch and upsert immediately in tiny groups
           const upsertBatchSize = 3;
-          const rows = data.map((d, j) => {
+          let rows = data.map((d, j) => {
             const chunkIndex = batchStartIndex + j;
             const chunkText = batch[j];
             return {
@@ -243,6 +242,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
               embedding: d.embedding,
               source_id: documentId,
               status: 'approved',
+              source_type: 'document',
               content: chunkText,
               sequence_number: chunkIndex,
             } as any;
@@ -263,7 +263,6 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
           // Clear to free memory
           embeddingData.data = null;
-          (rows as unknown as any[]) = [];
 
           break;
         } catch (embeddingError) {
