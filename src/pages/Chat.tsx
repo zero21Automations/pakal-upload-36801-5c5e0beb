@@ -12,11 +12,13 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { RoleSelector } from "@/components/RoleSelector";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useConversation } from "@/hooks/useConversation";
 import { SuggestedQuestions } from "@/components/chat/SuggestedQuestions";
 import { CopyPasteActions } from "@/components/chat/CopyPasteActions";
 import { ContentFilters, ContentFilterState, defaultContentFilters } from "@/components/chat/ContentFilters";
 import { EnhancedCitationCard } from "@/components/chat/EnhancedCitationCard";
 import { FieldExamplesPanel } from "@/components/chat/FieldExamplesPanel";
+import { ConversationsList } from "@/components/chat/ConversationsList";
 import { ROLE_LABELS } from "@/types/roles";
 import { ChunkMetadata } from "@/types/content";
 import { 
@@ -29,7 +31,9 @@ import {
   FileSearch,
   AlertCircle,
   CheckCircle2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  PanelLeftClose,
+  PanelLeft
 } from "lucide-react";
 
 interface ChatMessage {
@@ -65,21 +69,20 @@ const Chat = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { profile, role, loading: roleLoading, needsOnboarding } = useUserRole();
+  const { 
+    currentConversationId, 
+    messages, 
+    loading: conversationLoading,
+    setMessages,
+    loadConversation, 
+    createConversation, 
+    saveMessage,
+    startNewConversation 
+  } = useConversation();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      content: 'שלום! אני העוזר הדיגיטלי של מערכת הידע של פק״ל.\n\nאני יכול לענות על שאלות בהתבסס על המסמכים והתוכן שהועלו למערכת.\n\nהמערכת כוללת:\n• מסמך ליבה (רמה 0) - התוכן הרשמי של פק״ל\n• תוכן L1 - תוכן ליבה נוסף\n• תוכן L2 - כלים והדרכות מעשיות\n• תוכן L3 - מחקרים והקשר רחב\n\nאיך אני יכול לעזור לך היום?',
-      isUser: false,
-      timestamp: new Date(),
-      metadata: {
-        mode: 'knowledge'
-      }
-    }
-  ]);
+  const [showConversations, setShowConversations] = useState(true);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showCitations, setShowCitations] = useState(true);
@@ -112,20 +115,40 @@ const Chat = () => {
     }
   }, [roleLoading, needsOnboarding]);
 
+  useEffect(() => {
+    if (!currentConversationId && messages.length === 0) {
+      startNewConversation();
+    }
+  }, [currentConversationId, messages.length, startNewConversation]);
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
+    const messageContent = inputValue.trim();
+    
+    // Create conversation if needed
+    let conversationId = currentConversationId;
+    if (!conversationId) {
+      conversationId = await createConversation(messageContent);
+      if (!conversationId) return;
+    }
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      content: inputValue.trim(),
+      content: messageContent,
       isUser: true,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const messageContent = inputValue.trim();
     setInputValue('');
     setIsLoading(true);
+    
+    // Save user message to database
+    await saveMessage({
+      content: messageContent,
+      isUser: true
+    }, conversationId);
 
     // Create placeholder for assistant message
     const assistantMessageId = (Date.now() + 1).toString();
@@ -212,6 +235,7 @@ const Chat = () => {
       setGenerateToolkit(false);
       let receivedMetadata: any = null;
       let fullContent = '';
+      let assistantMessageId: string | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -358,6 +382,23 @@ const Chat = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setShowConversations(!showConversations)}
+            >
+              {showConversations ? (
+                <>
+                  <PanelLeftClose className="h-4 w-4 ml-1" />
+                  הסתר היסטוריה
+                </>
+              ) : (
+                <>
+                  <PanelLeft className="h-4 w-4 ml-1" />
+                  הצג היסטוריה
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowFilters(!showFilters)}
             >
               <SlidersHorizontal className="h-4 w-4 ml-1" />
@@ -501,7 +542,21 @@ const Chat = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Conversations Sidebar */}
+          {showConversations && (
+            <div className="lg:col-span-3">
+              <ConversationsList
+                currentConversationId={currentConversationId}
+                onConversationSelect={loadConversation}
+                onNewConversation={startNewConversation}
+              />
+            </div>
+          )}
+
+          {/* Main Content */}
+          <div className={showConversations ? "lg:col-span-9" : "lg:col-span-12"}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Chat Area */}
           <div className="lg:col-span-2">
             <Card className="h-[calc(100vh-12rem)] flex flex-col">
@@ -755,6 +810,8 @@ const Chat = () => {
               </Card>
             </div>
           )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
