@@ -239,7 +239,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           embedding: data[0].embedding,
           source_id: documentId,
           status: 'approved',
-          source_type: 'document',
+          source_type: 'content_document',
           content: chunks[0],
           sequence_number: 0,
         } as any;
@@ -301,12 +301,12 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
       const isOOM = errorMessage.toLowerCase().includes('memory');
       const errorTag = isOOM ? 'OOM' : 'EMBEDDING_FAILED';
 
-      // Update document with classification only (status: classified, not completed)
+      // Update document with classification only (status: completed with warning, not failed)
       const { error: fallbackUpdateError } = await supabaseClient
         .from('documents')
         .update({
           document_level: classification.level,
-          processing_status: 'classified',
+          processing_status: 'completed',
           processed_at: new Date().toISOString(),
           chunks_count: chunksInsertedCount,
           processing_error: `${errorTag}: ${errorMessage.substring(0, 500)}`
@@ -326,7 +326,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           document_id: documentId,
           classification: classification,
           chunks_processed: chunksInsertedCount,
-          status: 'classified',
+          status: 'completed',
           warning: 'Document classified successfully but embeddings could not be generated due to resource constraints'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
