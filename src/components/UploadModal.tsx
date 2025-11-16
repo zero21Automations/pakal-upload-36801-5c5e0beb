@@ -14,6 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { ContentCategory, DifficultyLevel, CONTENT_CATEGORY_LABELS, DIFFICULTY_LABELS, TOPIC_TAG_OPTIONS } from "@/types/content";
+import { AppRole, ROLE_LABELS } from "@/types/roles";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -26,6 +31,15 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  
+  // Enhanced metadata fields
+  const [contentCategory, setContentCategory] = useState<ContentCategory | "">("");
+  const [targetRoles, setTargetRoles] = useState<AppRole[]>([]);
+  const [timeRequired, setTimeRequired] = useState<number | "">("");
+  const [topicTags, setTopicTags] = useState<string[]>([]);
+  const [methodologyName, setMethodologyName] = useState("");
+  const [isPractical, setIsPractical] = useState(false);
+  const [difficultyLevel, setDifficultyLevel] = useState<DifficultyLevel | "">("");
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -76,12 +90,13 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         throw uploadError;
       }
 
-      // Save document metadata to database
+      // Save document metadata to database with enhanced fields
       const { data: documentData, error: dbError } = await supabase
         .from('documents')
         .insert({
           user_id: user.id,
-          title: title.trim() || file.name.split('.')[0], // Use filename if no title
+          title: title.trim() || file.name.split('.')[0],
+          description: description.trim() || null,
           filename: file.name,
           file_path: uploadData.path,
           file_size: file.size,
@@ -96,10 +111,23 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         throw dbError;
       }
 
-      // Trigger AI processing
+      // Trigger AI processing with metadata
       try {
+        const metadata = {
+          content_category: contentCategory || null,
+          target_roles: targetRoles.length > 0 ? targetRoles : null,
+          time_required: timeRequired || null,
+          topic_tags: topicTags.length > 0 ? topicTags : null,
+          methodology_name: methodologyName.trim() || null,
+          is_practical: isPractical,
+          difficulty_level: difficultyLevel || null
+        };
+        
         const { error: processError } = await supabase.functions.invoke('process-document', {
-          body: { documentId: documentData.id }
+          body: { 
+            documentId: documentData.id,
+            metadata 
+          }
         });
         
         if (processError) {
@@ -143,11 +171,34 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
   };
 
   const handleClose = () => {
-    // Reset form when closing
     setFile(null);
     setTitle("");
     setDescription("");
+    setContentCategory("");
+    setTargetRoles([]);
+    setTimeRequired("");
+    setTopicTags([]);
+    setMethodologyName("");
+    setIsPractical(false);
+    setDifficultyLevel("");
+    setIsUploading(false);
     onClose();
+  };
+  
+  const toggleRole = (role: AppRole) => {
+    setTargetRoles(prev => 
+      prev.includes(role) 
+        ? prev.filter(r => r !== role) 
+        : [...prev, role]
+    );
+  };
+  
+  const toggleTag = (tag: string) => {
+    setTopicTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag) 
+        : [...prev, tag]
+    );
   };
 
   return (
@@ -229,6 +280,118 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
             />
+          </div>
+
+          {/* Enhanced Metadata Section */}
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="font-semibold text-sm">מטא-דאטה משופרת (אופציונלי)</h3>
+            
+            {/* Content Category */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="category" className="text-right">קטגוריית תוכן</Label>
+              <Select value={contentCategory} onValueChange={(v) => setContentCategory(v as ContentCategory)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="בחר קטגוריה..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CONTENT_CATEGORY_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Target Roles */}
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2">תפקידים רלוונטיים</Label>
+              <div className="col-span-3 space-y-2">
+                {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                  <div key={role} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`role-${role}`}
+                      checked={targetRoles.includes(role as AppRole)}
+                      onCheckedChange={() => toggleRole(role as AppRole)}
+                    />
+                    <Label htmlFor={`role-${role}`} className="font-normal cursor-pointer">
+                      {label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Time Required */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="time" className="text-right">זמן נדרש (דקות)</Label>
+              <Input
+                id="time"
+                type="number"
+                value={timeRequired}
+                onChange={(e) => setTimeRequired(e.target.value ? parseInt(e.target.value) : "")}
+                placeholder="לדוגמה: 30"
+                className="col-span-3"
+                min="0"
+              />
+            </div>
+
+            {/* Topic Tags */}
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2">תגיות נושא</Label>
+              <div className="col-span-3 flex flex-wrap gap-2">
+                {TOPIC_TAG_OPTIONS.map(({ value, label }) => (
+                  <Badge
+                    key={value}
+                    variant={topicTags.includes(value) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => toggleTag(value)}
+                  >
+                    {label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Methodology Name */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="methodology" className="text-right">שם מתודולוגיה</Label>
+              <Input
+                id="methodology"
+                value={methodologyName}
+                onChange={(e) => setMethodologyName(e.target.value)}
+                placeholder="לדוגמה: בניית חוסן צוותי"
+                className="col-span-3"
+              />
+            </div>
+
+            {/* Difficulty Level */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="difficulty" className="text-right">רמת קושי</Label>
+              <Select value={difficultyLevel} onValueChange={(v) => setDifficultyLevel(v as DifficultyLevel)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="בחר רמה..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(DIFFICULTY_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Is Practical */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">תוכן מעשי</Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Checkbox
+                  id="practical"
+                  checked={isPractical}
+                  onCheckedChange={(checked) => setIsPractical(checked as boolean)}
+                />
+                <Label htmlFor="practical" className="font-normal cursor-pointer">
+                  המסמך כולל כלים ופעילויות מעשיות
+                </Label>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}

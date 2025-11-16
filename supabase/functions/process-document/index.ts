@@ -27,7 +27,8 @@ serve(async (req) => {
   try {
     const body = await req.json();
     documentId = body.documentId;
-    console.log('Processing document:', documentId);
+    const uploadMetadata = body.metadata || {}; // Enhanced metadata from upload
+    console.log('Processing document:', documentId, 'with metadata:', uploadMetadata);
 
     // Update status to extracting
     await supabaseClient
@@ -261,6 +262,14 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
             source_type: 'content_document',
             content: chunk,
             sequence_number: chunkIndex,
+            // Apply enhanced metadata from upload
+            content_category: uploadMetadata.content_category || null,
+            target_roles: uploadMetadata.target_roles || null,
+            time_required: uploadMetadata.time_required || null,
+            topic_tags: uploadMetadata.topic_tags || null,
+            methodology_name: uploadMetadata.methodology_name || null,
+            is_practical: uploadMetadata.is_practical || false,
+            difficulty_level: uploadMetadata.difficulty_level || null
           } as any;
         });
 

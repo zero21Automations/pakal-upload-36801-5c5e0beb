@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message, org_id, unit_id, mode = 'insights', level_weights, user_role = null } = await req.json();
+    const { message, org_id, unit_id, mode = 'insights', level_weights, user_role = null, content_filters, generate_toolkit } = await req.json();
 
     if (!message || !org_id) {
       return new Response(
@@ -120,7 +120,20 @@ serve(async (req) => {
 - אם אין מידע רלוונטי במערכת - אמור זאת בבירור
 - הדגש נקודות מעשיות וישימות`;
 
-    const systemPrompt = baseRolePrompt + knowledgeGuidelines;
+    // If toolkit generation is requested, enhance the prompt
+    let toolkitEnhancement = '';
+    if (generate_toolkit) {
+      toolkitEnhancement = `\n\nבקשה מיוחדת: צור ערכת כלים מיקרו (Micro-Toolkit) מעשית ופעילה עבור המשתמש. הערכה צריכה לכלול:
+1. 3-5 פעולות קונקרטיות שניתן ליישם מיד
+2. לוח זמנים מוערך לכל פעולה
+3. משאבים או כלים נדרשים
+4. דוגמאות מעשיות רלוונטיות לתפקיד
+5. מדדי הצלחה ברורים
+
+העדף תוכן מעשי וכלים ממאגר הידע שמתאימים לתפקיד ${user_role || 'המשתמש'}.`;
+    }
+
+    const systemPrompt = baseRolePrompt + knowledgeGuidelines + toolkitEnhancement;
 
     let contextInfo = '';
     if (searchResults.length > 0) {
