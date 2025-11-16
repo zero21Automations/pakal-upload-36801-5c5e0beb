@@ -1304,7 +1304,7 @@ export default function KnowledgeManagement() {
                               מאושר
                             </Button>
                           ) : null}
-                          {(doc.processing_status === 'pending' || doc.processing_status === 'failed') && (
+                          {doc.processing_status === 'failed' && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -1313,7 +1313,7 @@ export default function KnowledgeManagement() {
                               className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                             >
                               <PlayCircle className="h-4 w-4 ml-1" />
-                              {processingDocId === doc.id ? 'מעבד...' : 'עבד עכשיו'}
+                              {processingDocId === doc.id ? 'מעבד...' : 'עבד מחדש'}
                             </Button>
                           )}
                           <Button
