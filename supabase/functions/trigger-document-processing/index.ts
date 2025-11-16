@@ -13,9 +13,24 @@ serve(async (req) => {
   }
 
   try {
+    // Get the authorization header to use the user's session
+    const authHeader = req.headers.get('Authorization');
+    
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
     );
 
     const { documentId } = await req.json();
