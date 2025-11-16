@@ -124,6 +124,17 @@ export default function KnowledgeManagement() {
 
   // System insights state
   const [isSystemInsightsOpen, setIsSystemInsightsOpen] = useState(false);
+  const [analytics, setAnalytics] = useState({
+    totalDocuments: 0,
+    pendingApprovals: 0,
+    lastUpdate: "-",
+    levelDistribution: {
+      core: 0,
+      l1: 0,
+      l2: 0,
+      l3: 0,
+    },
+  });
 
   // Helper to format document level for display
   const formatDocLevel = (level: string | null): string => {
@@ -145,6 +156,58 @@ export default function KnowledgeManagement() {
   useEffect(() => {
     fetchPakalTerms();
   }, []);
+
+  // Fetch analytics data
+  useEffect(() => {
+    fetchAnalytics();
+  }, [contentDocs, coreDoc]);
+
+  const fetchAnalytics = async () => {
+    try {
+      // Count documents by status
+      const pendingDocs = contentDocs.filter(doc => doc.status === 'ממתין לאישור').length;
+      
+      // Count documents by level
+      const levelCounts = {
+        core: coreDoc ? 1 : 0,
+        l1: contentDocs.filter(doc => doc.document_level === 'L1').length,
+        l2: contentDocs.filter(doc => doc.document_level === 'L2').length,
+        l3: contentDocs.filter(doc => doc.document_level === 'L3').length,
+      };
+      
+      // Get last update time
+      const allDates = [
+        ...contentDocs.map(doc => new Date(doc.created_at)),
+        ...(coreDoc ? [new Date(coreDoc.updated_at)] : [])
+      ];
+      const lastUpdate = allDates.length > 0 
+        ? new Date(Math.max(...allDates.map(d => d.getTime())))
+        : null;
+      
+      const formatLastUpdate = (date: Date | null) => {
+        if (!date) return "-";
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return "כרגע";
+        if (diffMins < 60) return `לפני ${diffMins} דקות`;
+        if (diffHours < 24) return `לפני ${diffHours} שעות`;
+        return `לפני ${diffDays} ימים`;
+      };
+
+      setAnalytics({
+        totalDocuments: contentDocs.length + (coreDoc ? 1 : 0),
+        pendingApprovals: pendingDocs,
+        lastUpdate: formatLastUpdate(lastUpdate),
+        levelDistribution: levelCounts,
+      });
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    }
+  };
 
   // Preview disabled temporarily
   // useEffect(() => {
@@ -1692,6 +1755,7 @@ export default function KnowledgeManagement() {
       {isSystemInsightsOpen && (
         <SystemInsightsWindow
           onClose={() => setIsSystemInsightsOpen(false)}
+          analytics={analytics}
         />
       )}
     </div>
