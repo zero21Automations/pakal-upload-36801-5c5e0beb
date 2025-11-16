@@ -59,29 +59,23 @@ serve(async (req) => {
       throw new Error('File not found in storage');
     }
 
-    // Extract text based on file type
+    // Extract text using preview-document function (works for all file types)
     let content = '';
-    const arrayBuffer = await fileData.arrayBuffer();
     
     try {
-      if (document.file_type === 'docx') {
-        // Use mammoth for DOCX files
-        const mammoth = await import('https://esm.sh/mammoth@1.6.0');
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        content = result.value;
-        console.log('DOCX extraction successful, length:', content.length);
-      } else if (document.file_type === 'pdf') {
-        // Use pdf-parse for PDF files
-        const pdfParse = await import('https://esm.sh/pdf-parse@1.1.1');
-        const buffer = new Uint8Array(arrayBuffer);
-        const result = await pdfParse.default(buffer);
-        content = result.text;
-        console.log('PDF extraction successful, length:', content.length);
-      } else {
-        // Fallback for text files
-        content = new TextDecoder().decode(arrayBuffer);
-        console.log('Text extraction (fallback), length:', content.length);
+      const formData = new FormData();
+      formData.append('file', fileData, document.filename);
+      
+      const { data: previewData, error: previewError } = await supabaseClient.functions.invoke('preview-document', {
+        body: formData
+      });
+      
+      if (previewError || !previewData?.fullContent) {
+        throw new Error('Failed to extract text from file');
       }
+      
+      content = previewData.fullContent;
+      console.log('Text extraction successful, length:', content.length);
     } catch (extractionError) {
       console.error('Text extraction failed:', extractionError);
       throw new Error(`Failed to extract text from ${document.file_type} file: ${extractionError instanceof Error ? extractionError.message : String(extractionError)}`);
