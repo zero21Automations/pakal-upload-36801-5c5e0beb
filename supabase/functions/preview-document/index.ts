@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,18 +13,57 @@ serve(async (req) => {
   }
 
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const contentType = req.headers.get('content-type') || '';
+    let file: File;
+    let fileName: string;
     
-    if (!file) {
-      throw new Error('No file provided');
+    // Check if it's a JSON request (backend-to-backend call)
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      const { bucket, path, filename } = body;
+      
+      if (!bucket || !path) {
+        throw new Error('Missing bucket or path in JSON body');
+      }
+      
+      console.log('Backend call: downloading from storage:', bucket, path);
+      
+      // Create Supabase client to download file
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      );
+      
+      const { data: fileData, error: downloadError } = await supabaseClient.storage
+        .from(bucket)
+        .download(path);
+      
+      if (downloadError || !fileData) {
+        throw new Error(`Failed to download file from storage: ${downloadError?.message || 'File not found'}`);
+      }
+      
+      file = new File([fileData], filename || path.split('/').pop() || 'unknown', {
+        type: fileData.type || 'application/octet-stream'
+      });
+      fileName = filename || path.split('/').pop() || 'unknown';
+    } else {
+      // FormData upload (direct UI call)
+      const formData = await req.formData();
+      const fileFromForm = formData.get('file') as File;
+      
+      if (!fileFromForm) {
+        throw new Error('No file provided');
+      }
+      
+      file = fileFromForm;
+      fileName = file.name;
     }
 
-    console.log('Previewing file:', file.name, file.type);
+    console.log('Previewing file:', fileName, file.type);
 
     // Extract text based on file type
     let content = '';
-    const fileType = file.name.split('.').pop()?.toLowerCase();
+    const fileType = fileName.split('.').pop()?.toLowerCase();
     
     try {
       if (fileType === 'docx') {
@@ -100,7 +140,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        fileName: file.name,
+        fileName: fileName,
         fileType: fileType || 'unknown',
         fileSize: file.size,
         contentPreview,
