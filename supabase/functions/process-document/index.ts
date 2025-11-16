@@ -178,14 +178,14 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
 
 
     // Generate embeddings for chunks with memory optimization
-    const maxContentLength = Math.min(content.length, 20000); // Cap content to prevent memory issues
+    const maxContentLength = Math.min(content.length, 10000); // Reduced to prevent memory issues
     const contentToProcess = content.slice(0, maxContentLength);
-    const chunks = chunkText(contentToProcess, 350, 50); // Optimized chunk size
+    const chunks = chunkText(contentToProcess, 500, 50); // Larger chunks = fewer total chunks
     
     console.log(`Processing ${chunks.length} chunks from ${maxContentLength} characters of content`);
 
-    // Process embeddings in very small batches to avoid memory issues
-    const batchSize = 15; // Even smaller batch size
+    // Process embeddings in small batches to avoid memory issues
+    const batchSize = 8; // Smaller batch size for memory constraints
     const allEmbeddings: Array<{ embedding: number[]; index: number }> = [];
     
     for (let i = 0; i < chunks.length; i += batchSize) {
@@ -216,6 +216,9 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
           
           const embeddingData = await embeddingResponse.json();
           allEmbeddings.push(...embeddingData.data);
+          
+          // Clear response to free memory
+          embeddingData.data = null;
           break;
           
         } catch (embeddingError) {
@@ -267,7 +270,7 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
     console.log(`Attempting to upsert ${chunkRows.length} chunks`);
     
     // Upsert chunks in smaller batches to avoid database timeouts
-    const dbBatchSize = 10;
+    const dbBatchSize = 5; // Smaller batches for memory efficiency
     for (let i = 0; i < chunkRows.length; i += dbBatchSize) {
       const batch = chunkRows.slice(i, i + dbBatchSize);
       const { error: chunkUpsertError } = await supabaseClient
