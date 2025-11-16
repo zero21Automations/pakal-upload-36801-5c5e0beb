@@ -19,6 +19,7 @@ import { ContentFilters, ContentFilterState, defaultContentFilters } from "@/com
 import { EnhancedCitationCard } from "@/components/chat/EnhancedCitationCard";
 import { FieldExamplesPanel } from "@/components/chat/FieldExamplesPanel";
 import { ConversationsList } from "@/components/chat/ConversationsList";
+import { TypingEffect } from "@/components/chat/TypingEffect";
 import { ROLE_LABELS } from "@/types/roles";
 import { ChunkMetadata } from "@/types/content";
 import { 
@@ -91,6 +92,7 @@ const Chat = () => {
   const [showFieldExamples, setShowFieldExamples] = useState(false);
   const [generateToolkit, setGenerateToolkit] = useState(false);
   const [contentFilters, setContentFilters] = useState<ContentFilterState>(defaultContentFilters);
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   const [levelWeights, setLevelWeights] = useState({
     Core: 0.50,
     L1: 0.20,
@@ -161,6 +163,9 @@ const Chat = () => {
       metadata: {}
     };
     setMessages(prev => [...prev, assistantMessage]);
+    
+    // Trigger typing effect for the new message
+    setTypingMessageId(assistantMessageId);
 
     try {
       const response = await fetch(
@@ -559,7 +564,7 @@ const Chat = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Chat Area */}
           <div className="lg:col-span-2">
-            <Card className="h-[calc(100vh-12rem)] flex flex-col">
+            <Card className="h-[calc(100vh-8rem)] flex flex-col">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Sparkles className="h-5 w-5 text-primary" />
@@ -584,7 +589,15 @@ const Chat = () => {
                               ? 'bg-primary text-primary-foreground ml-auto' 
                               : 'bg-muted mr-auto'
                           }`}>
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            {!message.isUser && typingMessageId === message.id ? (
+                              <TypingEffect 
+                                text={message.content} 
+                                speed={15}
+                                onComplete={() => setTypingMessageId(null)}
+                              />
+                            ) : (
+                              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            )}
                           </div>
                           
                           {!message.isUser && message.metadata && (
