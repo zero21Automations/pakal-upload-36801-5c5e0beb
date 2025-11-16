@@ -104,9 +104,19 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         
         if (processError) {
           console.error('Processing error:', processError);
+          toast({
+            title: "המסמך הועלה אך העיבוד נכשל",
+            description: `המסמך נשמר בהצלחה אך לא הצלחנו להתחיל את העיבוד: ${processError.message || 'שגיאה לא ידועה'}. תוכל לנסות שוב דרך ניהול ידע.`,
+            variant: "destructive",
+          });
         }
       } catch (processError) {
         console.error('Failed to trigger processing:', processError);
+        toast({
+          title: "המסמך הועלה אך העיבוד נכשל",
+          description: "המסמך נשמר בהצלחה אך לא הצלחנו להתחיל את העיבוד. תוכל לנסות שוב דרך ניהול ידע.",
+          variant: "destructive",
+        });
       }
 
       toast({

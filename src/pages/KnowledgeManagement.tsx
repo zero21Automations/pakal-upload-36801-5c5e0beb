@@ -19,7 +19,8 @@ import {
   Plus,
   Search,
   Download,
-  Filter
+  Filter,
+  PlayCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -102,6 +103,9 @@ export default function KnowledgeManagement() {
   const [contentPreview, setContentPreview] = useState<any>(null);
   const [isPreviewingCore, setIsPreviewingCore] = useState(false);
   const [corePreview, setCorePreview] = useState<any>(null);
+
+  // Manual processing state
+  const [processingDocId, setProcessingDocId] = useState<string | null>(null);
 
   // Pakal terms state
   const [pakalTerms, setPakalTerms] = useState<PakalTerm[]>([]);
@@ -853,6 +857,37 @@ export default function KnowledgeManagement() {
     }
   };
 
+  const handleManualProcessDocument = async (docId: string) => {
+    setProcessingDocId(docId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('trigger-document-processing', {
+        body: { documentId: docId }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "העיבוד התחיל",
+        description: "המסמך מעובד כעת. תוכל לעקוב אחר ההתקדמות.",
+      });
+
+      // Refresh document list to show updated status
+      fetchContentDocuments();
+    } catch (error) {
+      console.error('Error triggering processing:', error);
+      toast({
+        title: "שגיאה בהתחלת העיבוד",
+        description: error instanceof Error ? error.message : "לא ניתן להתחיל את העיבוד",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingDocId(null);
+    }
+  };
+
   // Get unique categories from terms
   const categories = useMemo(() => {
     const uniqueCategories = new Set(
@@ -1269,6 +1304,18 @@ export default function KnowledgeManagement() {
                               מאושר
                             </Button>
                           ) : null}
+                          {(doc.processing_status === 'pending' || doc.processing_status === 'failed') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleManualProcessDocument(doc.id)}
+                              disabled={processingDocId === doc.id}
+                              className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <PlayCircle className="h-4 w-4 ml-1" />
+                              {processingDocId === doc.id ? 'מעבד...' : 'עבד עכשיו'}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

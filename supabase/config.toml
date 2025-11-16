@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.watchdog-stuck-documents]
 verify_jwt = false
+
+[functions.trigger-document-processing]
+verify_jwt = false
