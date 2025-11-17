@@ -30,7 +30,8 @@ import {
   CheckCircle2,
   SlidersHorizontal,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  ArrowDown
 } from "lucide-react";
 
 interface ChatMessage {
@@ -92,6 +93,7 @@ const Chat = () => {
     L2: 0.08,
     L3: 0.00
   });
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Auto-scroll to bottom when new messages are added
   const scrollToBottom = () => {
@@ -103,6 +105,27 @@ const Chat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  // Handle scroll to show/hide scroll button
+  useEffect(() => {
+    const scrollArea = scrollAreaRef.current;
+    if (!scrollArea) return;
+
+    const handleScroll = () => {
+      const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
+      if (!viewport) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = viewport;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollButton(!isNearBottom && messages.length > 0);
+    };
+
+    const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
+    if (viewport) {
+      viewport.addEventListener('scroll', handleScroll);
+      return () => viewport.removeEventListener('scroll', handleScroll);
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     if (!roleLoading && needsOnboarding) {
@@ -529,7 +552,7 @@ const Chat = () => {
                 </CardTitle>
               </CardHeader>
               
-              <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+              <CardContent className="flex-1 flex flex-col p-0 overflow-hidden relative">
                 <ScrollArea className="flex-1 max-h-full p-4" ref={scrollAreaRef} dir="rtl">
                   <div className="space-y-4">
                     {messages.map((message, index) => (
@@ -611,6 +634,18 @@ const Chat = () => {
                     <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
+                
+                {/* Scroll to Bottom Button */}
+                {showScrollButton && (
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="absolute bottom-20 right-8 rounded-full shadow-primary hover:shadow-command transition-all duration-300 animate-in fade-in zoom-in"
+                    onClick={scrollToBottom}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                )}
                 
                 <Separator />
                 

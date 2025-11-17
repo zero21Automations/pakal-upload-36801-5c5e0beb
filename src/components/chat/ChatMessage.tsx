@@ -1,19 +1,45 @@
 import { Message, Source } from "@/types/chat";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { User, Bot, Clock } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { User, Bot, Clock, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatMessageProps {
   message: Message;
 }
 
 export const ChatMessage = ({ message }: ChatMessageProps) => {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('he-IL', { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      toast({
+        title: "הועתק",
+        description: "ההודעה הועתקה ללוח",
+        duration: 2000,
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן להעתיק את ההודעה",
+        variant: "destructive",
+      });
+    }
   };
 
   const getSourceIcon = (level: Source['level']) => {
@@ -113,63 +139,121 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
   const isUser = message.sender === 'user';
 
   return (
-    <div 
-      className={cn(
-        "flex w-full mb-6 animate-fade-in",
-        isUser ? "justify-end" : "justify-start"
-      )}
-      dir="rtl"
-    >
-      <div className={cn("flex max-w-[85%] gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
-        {/* Avatar */}
-        <div className={cn(
-          "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-105",
-          isUser ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
-        )}>
-          {isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
-        </div>
-
-        {/* Message Content */}
-        <div className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
-          {/* Message Bubble */}
-          <Card className={cn(
-            "shadow-sm border transition-all duration-200 hover:shadow-md",
+    <TooltipProvider>
+      <div 
+        className={cn(
+          "group flex w-full mb-6 animate-in slide-in-from-bottom-4 duration-300",
+          isUser ? "justify-end" : "justify-start"
+        )}
+        dir="rtl"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div className={cn("flex max-w-[85%] gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
+          {/* Avatar */}
+          <div className={cn(
+            "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all duration-300 hover:scale-110 hover:shadow-lg",
             isUser 
-              ? "bg-primary text-primary-foreground border-primary/20" 
-              : "bg-card text-card-foreground hover:bg-muted/30"
+              ? "bg-gradient-to-br from-primary to-primary-light text-primary-foreground" 
+              : "bg-gradient-to-br from-secondary to-secondary-hover text-secondary-foreground"
           )}>
-            <CardContent className="p-4">
+            {isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+          </div>
+
+          {/* Message Content */}
+          <div className={cn("flex flex-col gap-2 relative", isUser ? "items-end" : "items-start")}>
+            {/* Message Bubble */}
+            <Card className={cn(
+              "shadow-card border transition-all duration-300 hover:shadow-primary hover:-translate-y-0.5 relative overflow-hidden",
+              isUser 
+                ? "bg-gradient-to-br from-primary to-primary-hover text-primary-foreground border-primary/20" 
+                : "bg-card text-card-foreground hover:bg-muted/30 border-border/50"
+            )}>
+              {/* Copy Button */}
               <div className={cn(
-                "prose prose-sm max-w-none",
-                isUser ? "prose-invert" : ""
+                "absolute top-2 left-2 opacity-0 transition-opacity duration-200",
+                isHovered && "opacity-100",
+                isUser ? "right-2 left-auto" : ""
               )}>
-                {formatMarkdown(message.content)}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleCopy}
+                      className={cn(
+                        "p-1.5 rounded-md transition-colors",
+                        isUser 
+                          ? "bg-primary-light/20 hover:bg-primary-light/30 text-primary-foreground"
+                          : "bg-muted hover:bg-muted-foreground/10"
+                      )}
+                    >
+                      {copied ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{copied ? "הועתק!" : "העתק הודעה"}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Sources */}
-          {message.sources && message.sources.length > 0 && (
-            <div className="flex flex-wrap gap-2 max-w-full">
-              {message.sources.map((source) => (
-                <Badge
-                  key={source.id}
-                  variant="outline"
-                  className="text-xs transition-colors hover:bg-muted/50"
-                >
-                  {source.title}
-                </Badge>
-              ))}
-            </div>
-          )}
+              <CardContent className="p-4">
+                <div className={cn(
+                  "prose prose-sm max-w-none",
+                  isUser ? "prose-invert" : ""
+                )}>
+                  {formatMarkdown(message.content)}
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Timestamp */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {formatTime(message.timestamp)}
+            {/* Sources */}
+            {message.sources && message.sources.length > 0 && (
+              <div className="flex flex-wrap gap-2 max-w-full">
+                {message.sources.map((source) => (
+                  <Tooltip key={source.id}>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-xs transition-all duration-200 cursor-pointer",
+                          "hover:scale-105 hover:shadow-md hover:bg-primary/10 hover:border-primary/30"
+                        )}
+                      >
+                        {source.title}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <div className="text-xs max-w-xs">
+                        <p className="font-semibold mb-1">{source.title}</p>
+                        <p className="text-muted-foreground">מקור מידע</p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            )}
+
+            {/* Timestamp - Show on hover */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={cn(
+                  "flex items-center gap-1 text-xs transition-opacity duration-200",
+                  isHovered ? "text-muted-foreground" : "text-muted-foreground/60"
+                )}>
+                  <Clock className="h-3 w-3" />
+                  {formatTime(message.timestamp)}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{message.timestamp.toLocaleDateString('he-IL')} {formatTime(message.timestamp)}</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
