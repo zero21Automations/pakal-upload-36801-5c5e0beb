@@ -83,13 +83,7 @@ serve(async (req) => {
     if (searchResults.length > 0) {
       contextText = '\n\nמידע רלוונטי מהמערכת:\n\n';
       searchResults.forEach((result: any, index: number) => {
-        let levelBadge = '';
-        if (result.level === 0) {
-          levelBadge = 'מסמך ליבה';
-        } else {
-          levelBadge = `רמה ${result.level}`;
-        }
-        contextText += `[${levelBadge}] ${result.source_title}\n${result.content}\n\n`;
+        contextText += `[${result.source_title}]\n${result.content}\n\n`;
         citations.push({
           source_id: result.source_id,
           chunk_id: result.chunk_id,
@@ -107,16 +101,9 @@ serve(async (req) => {
     // Add knowledge base guidelines for all roles
     const knowledgeGuidelines = `
 
-היררכיית מקורות (סדר עדיפות):
-1. **רמה 0 (מסמך ליבה)** - תוכן הליבה הרשמי של פק״ל - זוהי המקור הסמכותי ביותר
-2. **רמה 1 (L1)** - תוכן ליבה נוסף - עדיפות גבוהה מאוד
-3. **רמה 2 (L2)** - כלים והדרכות מעשיות - עדיפות בינונית
-4. **רמה 3 (L3)** - מחקרים והקשר רחב - תוספת עומק
-
 עקרונות חשובים:
 - ענה על בסיס המידע שסופק לך מהמערכת
-- צטט מקורות רלוונטיים ורמת הידע שלהם
-- אם יש מספר מקורות ברמות שונות - העדף את הרמה הגבוהה יותר
+- צטט מקורות רלוונטיים על פי שמם בלבד (ללא ציון רמות או סיווגים)
 - אם אין מידע רלוונטי במערכת - אמור זאת בבירור
 - הדגש נקודות מעשיות וישימות`;
 
