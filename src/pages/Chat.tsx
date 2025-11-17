@@ -3,7 +3,6 @@ import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -16,8 +15,12 @@ import { useConversation } from "@/hooks/useConversation";
 import { ContentFilters, ContentFilterState, defaultContentFilters } from "@/components/chat/ContentFilters";
 import { EnhancedCitationCard } from "@/components/chat/EnhancedCitationCard";
 import { ConversationsList } from "@/components/chat/ConversationsList";
+import { ChatMessage as ChatMessageComponent } from "@/components/chat/ChatMessage";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
+import { ChatInput } from "@/components/chat/ChatInput";
 import { ROLE_LABELS } from "@/types/roles";
 import { ChunkMetadata } from "@/types/content";
+import { Message } from "@/types/chat";
 import { 
   Send, 
   MessageSquare, 
@@ -94,6 +97,8 @@ const Chat = () => {
     L3: 0.00
   });
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [typingState, setTypingState] = useState<'typing' | 'searching' | 'analyzing' | 'generating'>('searching');
+  const [lastUserMessageIndex, setLastUserMessageIndex] = useState<number | null>(null);
 
   // Auto-scroll to bottom when new messages are added
   const scrollToBottom = () => {
@@ -234,8 +239,10 @@ const Chat = () => {
               
               if (parsed.type === 'metadata') {
                 receivedMetadata = parsed;
+                setTypingState('analyzing');
               } else if (parsed.type === 'content') {
                 fullContent += parsed.content;
+                setTypingState('generating');
                 // Update message in real-time with accumulated content
                 setMessages(prev => prev.map(msg => 
                   msg.id === assistantMessageId
@@ -299,6 +306,20 @@ const Chat = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRegenerateMessage = async (messageIndex: number) => {
+    // Find the user message before this bot message
+    const userMessage = messages[messageIndex - 1];
+    if (!userMessage || !userMessage.isUser) return;
+
+    // Remove all messages after the user message
+    const newMessages = messages.slice(0, messageIndex);
+    setMessages(newMessages);
+
+    // Resend with the user's original message
+    setInputValue(userMessage.content);
+    setTimeout(() => handleSendMessage(), 100);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -556,80 +577,24 @@ const Chat = () => {
                 <ScrollArea className="flex-1 max-h-full p-4" ref={scrollAreaRef} dir="rtl">
                   <div className="space-y-4">
                     {messages.map((message, index) => (
-                      <div key={message.id} className={`flex gap-3 ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-                        {!message.isUser && (
-                          <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
-                            <Bot className="h-4 w-4 text-primary-foreground" />
-                          </div>
-                        )}
-                        
-                        <div className="flex-1 max-w-[80%]">
-                          <div className={`rounded-lg p-3 ${
-                            message.isUser 
-                              ? 'bg-primary text-primary-foreground ml-auto' 
-                              : 'bg-muted mr-auto'
-                          }`}>
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                          </div>
-                          
-                          {!message.isUser && message.metadata && (
-                            <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                              {message.metadata.has_l1_content && (
-                                <div className="flex items-center gap-1 text-green-600">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  תוכן L1
-                                </div>
-                              )}
-                              
-                              {!message.metadata.has_l1_content && message.metadata.search_results_count === 0 && (
-                                <div className="flex items-center gap-1 text-amber-600">
-                                  <AlertCircle className="h-3 w-3" />
-                                  אין מקורות
-                                </div>
-                              )}
-                              
-                              {getMetadataDisplay(message.metadata) && (
-                                <>
-                                  <span>•</span>
-                                  <span>{getMetadataDisplay(message.metadata)}</span>
-                                </>
-                              )}
-                            </div>
-                          )}
-                          
-                          
-                          <div className={`text-xs text-muted-foreground mt-1 ${message.isUser ? 'text-left' : 'text-right'}`}>
-                            {message.timestamp.toLocaleTimeString('he-IL', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </div>
-                        </div>
-
-                        {message.isUser && (
-                          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                            <User className="h-4 w-4 text-primary-foreground" />
-                          </div>
-                        )}
-                      </div>
+                      <ChatMessageComponent
+                        key={message.id}
+                        message={{
+                          id: message.id,
+                          content: message.content,
+                          sender: message.isUser ? 'user' : 'bot',
+                          timestamp: message.timestamp,
+                          sources: []
+                        }}
+                        onRegenerate={!message.isUser && lastUserMessageIndex !== null && index === lastUserMessageIndex + 1 
+                          ? () => handleRegenerateMessage(index)
+                          : undefined
+                        }
+                      />
                     ))}
                     
                     {isLoading && (
-                      <div className="flex gap-3 justify-start">
-                        <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
-                          <Bot className="h-4 w-4 text-primary-foreground" />
-                        </div>
-                        <div className="bg-muted rounded-lg p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="animate-pulse flex space-x-1">
-                              <div className="rounded-full bg-primary h-2 w-2"></div>
-                              <div className="rounded-full bg-primary h-2 w-2 animate-pulse delay-75"></div>
-                              <div className="rounded-full bg-primary h-2 w-2 animate-pulse delay-150"></div>
-                            </div>
-                            <span className="text-sm text-muted-foreground">מחפש במאגר הידע...</span>
-                          </div>
-                        </div>
-                      </div>
+                      <TypingIndicator state={typingState} />
                     )}
                     <div ref={messagesEndRef} />
                   </div>
@@ -649,25 +614,14 @@ const Chat = () => {
                 
                 <Separator />
                 
-                <div className="p-4 space-y-4">
-                  {/* Input Area */}
-                  <div className="flex gap-2" dir="rtl">
-                    <Input
-                      placeholder="שאל שאלה..."
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      disabled={isLoading}
-                      className="flex-1"
-                    />
-                    <Button 
-                      onClick={handleSendMessage}
-                      disabled={isLoading || !inputValue.trim()}
-                      size="icon"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <div className="p-4">
+                  <ChatInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    onSend={handleSendMessage}
+                    disabled={isLoading}
+                    mode="insights"
+                  />
                   
                   
                   {/* Quick Actions - Fallback for managers */}

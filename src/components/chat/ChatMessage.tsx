@@ -2,16 +2,19 @@ import { Message, Source } from "@/types/chat";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { User, Bot, Clock, Copy, Check } from "lucide-react";
+import { User, Bot, Clock, Copy, Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { MarkdownContent } from "./MarkdownContent";
 
 interface ChatMessageProps {
   message: Message;
+  onRegenerate?: () => void;
 }
 
-export const ChatMessage = ({ message }: ChatMessageProps) => {
+export const ChatMessage = ({ message, onRegenerate }: ChatMessageProps) => {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -39,6 +42,12 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
         description: "לא ניתן להעתיק את ההודעה",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleRegenerate = () => {
+    if (onRegenerate) {
+      onRegenerate();
     }
   };
 
@@ -200,14 +209,30 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
               </div>
 
               <CardContent className="p-4">
-                <div className={cn(
-                  "prose prose-sm max-w-none",
-                  isUser ? "prose-invert" : ""
-                )}>
-                  {formatMarkdown(message.content)}
-                </div>
+                {isUser ? (
+                  <div className="prose prose-sm max-w-none prose-invert">
+                    {formatMarkdown(message.content)}
+                  </div>
+                ) : (
+                  <MarkdownContent content={message.content} />
+                )}
               </CardContent>
             </Card>
+
+            {/* Regenerate Button */}
+            {!isUser && onRegenerate && isHovered && (
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  className="h-7 px-2 text-xs gap-1"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span>צור תשובה מחדש</span>
+                </Button>
+              </div>
+            )}
 
             {/* Sources */}
             {message.sources && message.sources.length > 0 && (
