@@ -16,7 +16,6 @@ import { useConversation } from "@/hooks/useConversation";
 import { ContentFilters, ContentFilterState, defaultContentFilters } from "@/components/chat/ContentFilters";
 import { EnhancedCitationCard } from "@/components/chat/EnhancedCitationCard";
 import { ConversationsList } from "@/components/chat/ConversationsList";
-import { TypingEffect } from "@/components/chat/TypingEffect";
 import { ROLE_LABELS } from "@/types/roles";
 import { ChunkMetadata } from "@/types/content";
 import { 
@@ -87,7 +86,6 @@ const Chat = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showContentFilters, setShowContentFilters] = useState(false);
   const [contentFilters, setContentFilters] = useState<ContentFilterState>(defaultContentFilters);
-  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   const [levelWeights, setLevelWeights] = useState({
     Core: 0.50,
     L1: 0.20,
@@ -158,9 +156,6 @@ const Chat = () => {
       metadata: {}
     };
     setMessages(prev => [...prev, assistantMessage]);
-    
-    // Trigger typing effect for the new message
-    setTypingMessageId(assistantMessageId);
 
     try {
       const response = await fetch(
@@ -194,7 +189,10 @@ const Chat = () => {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let receivedMetadata: any = null;
+      let fullContent = '';
 
+      // Single loop to process the stream
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -211,48 +209,11 @@ const Chat = () => {
             try {
               const parsed = JSON.parse(data);
               
-              setMessages(prev => {
-                const newMessages = [...prev];
-                const lastMessage = newMessages[newMessages.length - 1];
-                
-                if (lastMessage && !lastMessage.isUser) {
-                  lastMessage.content = parsed.content || lastMessage.content;
-                  lastMessage.citations = parsed.citations || lastMessage.citations;
-                  lastMessage.metadata = parsed.metadata || lastMessage.metadata;
-                }
-                
-                return newMessages;
-              });
-            } catch (e) {
-              console.error('Failed to parse SSE data:', e);
-            }
-          }
-        }
-      }
-      
-      let receivedMetadata: any = null;
-      let fullContent = '';
-      let assistantMessageId: string | null = null;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            try {
-              const parsed = JSON.parse(data);
-              
               if (parsed.type === 'metadata') {
                 receivedMetadata = parsed;
               } else if (parsed.type === 'content') {
                 fullContent += parsed.content;
-                // Update message in real-time
+                // Update message in real-time with accumulated content
                 setMessages(prev => prev.map(msg => 
                   msg.id === assistantMessageId
                     ? { ...msg, content: fullContent }
@@ -260,16 +221,33 @@ const Chat = () => {
                 ));
               } else if (parsed.type === 'done') {
                 // Finalize message with metadata and citations
+                const finalMessage = {
+                  ...assistantMessage,
+                  content: fullContent,
+                  citations: receivedMetadata?.citations || [],
+                  metadata: receivedMetadata?.metadata || {}
+                };
+                
                 setMessages(prev => prev.map(msg => 
-                  msg.id === assistantMessageId
-                    ? {
-                        ...msg,
-                        content: fullContent,
-                        citations: receivedMetadata?.citations || [],
-                        metadata: receivedMetadata?.metadata || {}
-                      }
-                    : msg
+                  msg.id === assistantMessageId ? finalMessage : msg
                 ));
+
+                // Save the complete assistant message to database
+                const savedMessageId = await saveMessage({
+                  content: fullContent,
+                  isUser: false,
+                  citations: receivedMetadata?.citations || [],
+                  metadata: receivedMetadata?.metadata || {}
+                });
+
+                // Update the message ID to match the database ID to prevent duplicates from real-time subscription
+                if (savedMessageId) {
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessageId 
+                      ? { ...msg, id: savedMessageId }
+                      : msg
+                  ));
+                }
 
                 // Show success toast if L1 content was found
                 if (receivedMetadata?.metadata?.has_l1_content) {
@@ -280,7 +258,7 @@ const Chat = () => {
                 }
               }
             } catch (e) {
-              console.error('Error parsing SSE data:', e);
+              console.error('Failed to parse SSE data:', e);
             }
           }
         }
@@ -568,15 +546,7 @@ const Chat = () => {
                               ? 'bg-primary text-primary-foreground ml-auto' 
                               : 'bg-muted mr-auto'
                           }`}>
-                            {!message.isUser && typingMessageId === message.id ? (
-                              <TypingEffect 
-                                text={message.content} 
-                                speed={15}
-                                onComplete={() => setTypingMessageId(null)}
-                              />
-                            ) : (
-                              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                            )}
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                           </div>
                           
                           {!message.isUser && message.metadata && (
