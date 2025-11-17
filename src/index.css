@@ -237,6 +237,17 @@ All colors are HSL format for maximum theming control
     to { transform: translateX(0); }
   }
 
+  @keyframes slide-in-from-bottom {
+    from { 
+      opacity: 0;
+      transform: translateY(20px); 
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0); 
+    }
+  }
+
   @keyframes pulse-soft {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
