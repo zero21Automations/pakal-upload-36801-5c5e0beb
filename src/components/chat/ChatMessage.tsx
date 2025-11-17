@@ -160,9 +160,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
                     getSourceBorderColor(source.level)
                   )}
                 >
-                  <span className="mr-1">{getSourceIcon(source.level)}</span>
                   {source.title}
-                  <span className="text-muted-foreground mr-1">({getSourceLabel(source.level)})</span>
                 </Badge>
               ))}
             </div>
