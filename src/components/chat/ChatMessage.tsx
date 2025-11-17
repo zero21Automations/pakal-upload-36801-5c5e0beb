@@ -92,11 +92,11 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
         parts.push(text.substring(currentIndex, match.index));
       }
       
-      // Add the italic text
+      // Add the bold text
       parts.push(
-        <em key={`italic-${match.index}`} className="italic">
+        <strong key={`bold-${match.index}`} className="font-bold">
           {match[1]}
-        </em>
+        </strong>
       );
       
       currentIndex = match.index + match[0].length;
