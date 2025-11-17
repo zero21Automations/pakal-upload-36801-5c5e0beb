@@ -155,10 +155,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
                 <Badge
                   key={source.id}
                   variant="outline"
-                  className={cn(
-                    "text-xs border-r-4 transition-colors hover:bg-muted/50",
-                    getSourceBorderColor(source.level)
-                  )}
+                  className="text-xs transition-colors hover:bg-muted/50"
                 >
                   {source.title}
                 </Badge>
