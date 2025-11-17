@@ -157,7 +157,7 @@ serve(async (req) => {
               content: `שאלת המשתמש: ${message}${contextText ? '\n\n' + contextText : ''}`
             }
           ],
-          max_tokens: 1000,
+          max_tokens: 4096,
           stream: true,
         }),
       });
