@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.trigger-document-processing]
 verify_jwt = false
+
+[functions.sync-padlet]
+verify_jwt = false

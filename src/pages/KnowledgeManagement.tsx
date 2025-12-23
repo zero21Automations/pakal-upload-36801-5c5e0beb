@@ -21,7 +21,8 @@ import {
   Download,
   Filter,
   PlayCircle,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -124,6 +125,7 @@ export default function KnowledgeManagement() {
 
   // System insights state
   const [isSystemInsightsOpen, setIsSystemInsightsOpen] = useState(false);
+  const [syncingPadlet, setSyncingPadlet] = useState(false);
   const [analytics, setAnalytics] = useState({
     totalDocuments: 0,
     pendingApprovals: 0,
@@ -820,6 +822,39 @@ export default function KnowledgeManagement() {
     }
   };
 
+  const handleSyncPadlet = async () => {
+    setSyncingPadlet(true);
+    try {
+      toast({
+        title: "מסנכרן Padlet...",
+        description: "מוריד תוכן מהלוח...",
+      });
+
+      const { data, error } = await supabase.functions.invoke('sync-padlet');
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "סנכרון הושלם",
+          description: data.message || `נוספו ${data.results?.created || 0} פריטים חדשים`,
+        });
+        fetchContentDocuments();
+      } else {
+        throw new Error(data?.error || 'Failed to sync Padlet');
+      }
+    } catch (error) {
+      console.error('Error syncing Padlet:', error);
+      toast({
+        title: "שגיאה בסנכרון Padlet",
+        description: error instanceof Error ? error.message : "אירעה שגיאה",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingPadlet(false);
+    }
+  };
+
   const handlePreviewContentDoc = async () => {
     if (!contentDocFile) return;
 
@@ -1245,6 +1280,16 @@ export default function KnowledgeManagement() {
                 <div className="flex items-center justify-between">
                   <CardTitle>מסמכי תוכן</CardTitle>
                   <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleSyncPadlet}
+                    disabled={syncingPadlet}
+                    className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                  >
+                    <ExternalLink className="h-4 w-4 ml-1" />
+                    {syncingPadlet ? "מסנכרן..." : "סנכרן Padlet"}
+                  </Button>
                   <Button 
                     variant="ghost" 
                     size="sm"
