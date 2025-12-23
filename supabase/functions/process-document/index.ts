@@ -51,6 +51,13 @@ serve(async (req) => {
       throw new Error('Document not found');
     }
 
+    // Check file size BEFORE downloading - edge functions have 150MB memory limit
+    const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB max to be safe
+    if (document.file_size > MAX_FILE_SIZE) {
+      const sizeMB = (document.file_size / 1024 / 1024).toFixed(1);
+      throw new Error(`הקובץ גדול מדי (${sizeMB}MB). הגודל המקסימלי הוא 8MB. נא לפצל את הקובץ או להעלות גרסה קטנה יותר.`);
+    }
+
     // Extract text using preview-document (no file download needed)
     let content = '';
     
@@ -63,8 +70,13 @@ serve(async (req) => {
         }
       });
       
-      if (previewError || !previewData?.fullContent) {
-        throw new Error('Failed to extract text from file');
+      if (previewError) {
+        console.error('Preview error:', previewError);
+        throw new Error(previewError.message || 'Failed to extract text from file');
+      }
+      
+      if (!previewData?.fullContent) {
+        throw new Error(previewData?.error || 'Failed to extract text from file');
       }
       
       content = previewData.fullContent;
