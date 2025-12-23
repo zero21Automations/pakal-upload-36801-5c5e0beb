@@ -143,7 +143,7 @@ serve(async (req) => {
           }
         } else {
           // Create new document
-          const { error: insertError } = await supabase
+          const { data: insertedDoc, error: insertError } = await supabase
             .from('documents')
             .insert({
               title: post.title,
@@ -157,7 +157,9 @@ serve(async (req) => {
               status: 'מאושר',
               processing_status: 'pending',
               user_id: user_id,
-            });
+            })
+            .select('id')
+            .single();
 
           if (insertError) {
             console.error('Error inserting post:', insertError);
@@ -165,6 +167,22 @@ serve(async (req) => {
           } else {
             results.created++;
             results.posts.push(`חדש: ${post.title}`);
+            
+            // Trigger document processing
+            if (insertedDoc?.id) {
+              try {
+                const { error: processError } = await supabase.functions.invoke('process-document', {
+                  body: { documentId: insertedDoc.id }
+                });
+                if (processError) {
+                  console.error('Error triggering processing for:', post.title, processError);
+                } else {
+                  console.log('Triggered processing for:', post.title);
+                }
+              } catch (procErr) {
+                console.error('Failed to invoke process-document:', procErr);
+              }
+            }
           }
         }
       } catch (postError) {
