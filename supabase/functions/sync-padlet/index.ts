@@ -15,6 +15,15 @@ serve(async (req) => {
   }
 
   try {
+    // Get user_id from request body
+    const { user_id } = await req.json().catch(() => ({}));
+    
+    if (!user_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User ID is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -136,7 +145,7 @@ serve(async (req) => {
               content_type: 'external',
               status: 'מאושר',
               processing_status: 'pending',
-              user_id: '00000000-0000-0000-0000-000000000000', // System user
+              user_id: user_id,
             });
 
           if (insertError) {
