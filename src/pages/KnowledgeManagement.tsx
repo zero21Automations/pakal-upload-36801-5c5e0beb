@@ -823,6 +823,15 @@ export default function KnowledgeManagement() {
   };
 
   const handleSyncPadlet = async () => {
+    if (!user) {
+      toast({
+        title: "שגיאה",
+        description: "נדרשת התחברות לסנכרון",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSyncingPadlet(true);
     try {
       toast({
@@ -830,7 +839,9 @@ export default function KnowledgeManagement() {
         description: "מוריד תוכן מהלוח...",
       });
 
-      const { data, error } = await supabase.functions.invoke('sync-padlet');
+      const { data, error } = await supabase.functions.invoke('sync-padlet', {
+        body: { user_id: user.id }
+      });
 
       if (error) throw error;
 
@@ -976,12 +987,17 @@ export default function KnowledgeManagement() {
 
       if (error) throw error;
 
-      setContentDocs(contentDocs.map(doc => 
+      // Update local state immediately
+      setContentDocs(prev => prev.map(doc => 
         doc.id === docId ? { ...doc, status: 'מאושר' } : doc
       ));
+      
       toast({
         title: "המסמך אושר בהצלחה",
       });
+      
+      // Also refresh from database to ensure consistency
+      fetchContentDocuments();
     } catch (error) {
       console.error('Error approving document:', error);
       toast({
