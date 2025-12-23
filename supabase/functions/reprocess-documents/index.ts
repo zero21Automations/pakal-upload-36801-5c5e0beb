@@ -1,47 +1,96 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.2';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-    const { org_id } = await req.json();
-    console.log('Starting reprocessing for org:', org_id);
+    if (!supabaseUrl || !serviceKey || !anonKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Backend not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
-    // Get all approved documents that haven't been processed
-    const { data: documents, error: docError } = await supabaseClient
-      .from('documents')
-      .select('id, filename, title, file_type, user_id')
-      .or('processed_date.is.null,ai_determined_level.is.null')
-      .in('status', ['מאושר', 'approved'])
-      .eq('user_id', org_id);
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Read body for backward compatibility (org_id is ignored for security)
+    const body = await req.json().catch(() => ({} as any));
+    console.log("Reprocess request body:", body);
+
+    // Verify caller
+    const supabaseUser = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: authData, error: authError } = await supabaseUser.auth.getUser();
+    if (authError || !authData?.user) {
+      console.error("Auth error:", authError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Not authenticated" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const userId = authData.user.id;
+
+    // Privileged client for processing operations
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+
+    console.log("Starting reprocessing for user:", userId);
+
+    // Reprocess documents that are failed or missing derived fields
+    const { data: documents, error: docError } = await supabaseAdmin
+      .from("documents")
+      .select(
+        "id, filename, title, file_type, user_id, processing_status, processed_at, document_level, chunks_count",
+      )
+      .eq("user_id", userId)
+      .in("document_type", ["content", "padlet"])
+      .in("status", ["מאושר", "approved", "ממתין לאישור"])
+      .or(
+        [
+          "processing_status.eq.failed",
+          "processed_at.is.null",
+          "document_level.is.null",
+          "chunks_count.is.null",
+          "chunks_count.eq.0",
+        ].join(","),
+      )
+      .order("updated_at", { ascending: false })
+      .limit(50);
 
     if (docError) {
-      console.error('Error fetching documents:', docError);
-      throw new Error('Failed to fetch documents');
+      console.error("Error fetching documents:", docError);
+      throw new Error(docError.message || "Failed to fetch documents");
     }
 
     if (!documents || documents.length === 0) {
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'No documents need reprocessing',
-          processed_count: 0 
+        JSON.stringify({
+          success: true,
+          message: "No documents need reprocessing",
+          processed_count: 0,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -50,60 +99,62 @@ serve(async (req) => {
     const results = {
       success: 0,
       failed: 0,
-      errors: [] as string[]
+      errors: [] as string[],
     };
 
-    // Process each document
     for (const document of documents) {
       try {
-        console.log(`Processing document: ${document.filename} (${document.id})`);
-        
-        // Call the process-document function
-        const { data, error } = await supabaseClient.functions.invoke('process-document', {
-          body: { documentId: document.id }
+        console.log(`Reprocessing document: ${document.title} (${document.id})`);
+
+        const { data, error } = await supabaseAdmin.functions.invoke("process-document", {
+          body: { documentId: document.id },
         });
 
         if (error) {
-          throw error;
+          // Best-effort: extract JSON error from upstream function
+          let details = error.message;
+          try {
+            const ctx = (error as any)?.context;
+            if (ctx && typeof ctx.clone === "function") {
+              const payload = await ctx.clone().json().catch(() => null);
+              if (payload?.error) details = payload.error;
+            }
+          } catch {
+            // ignore
+          }
+          throw new Error(details);
         }
 
-        if (data && data.success) {
+        if (data?.success) {
           results.success++;
-          console.log(`Successfully processed: ${document.filename}`);
         } else {
-          throw new Error(data?.error || 'Unknown processing error');
+          throw new Error(data?.error || "Unknown processing error");
         }
-        
-        // Small delay between processing to avoid overwhelming the system
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-      } catch (error) {
+
+        // Small delay to avoid rate-limits
+        await new Promise((r) => setTimeout(r, 700));
+      } catch (e) {
         results.failed++;
-        const errorMsg = `Failed to process ${document.filename}: ${error instanceof Error ? error.message : String(error)}`;
-        results.errors.push(errorMsg);
-        console.error(errorMsg);
+        const msg = e instanceof Error ? e.message : String(e);
+        results.errors.push(`${document.title}: ${msg}`);
+        console.error("Reprocess failed:", document.id, msg);
       }
     }
-
-    console.log('Reprocessing complete:', results);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: `Reprocessing complete: ${results.success} successful, ${results.failed} failed`,
-        results: results
+        processed_count: documents.length,
+        results,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error) {
-    console.error('Error in reprocess-documents function:', error);
+    console.error("Error in reprocess-documents function:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
