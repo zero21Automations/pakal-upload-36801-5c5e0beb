@@ -364,7 +364,7 @@ export default function KnowledgeManagement() {
         .from('documents')
         .select('*')
         .eq('document_type', 'content')
-        .eq('status', 'מאושר')
+        .in('status', ['מאושר', 'ממתין לאישור'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
