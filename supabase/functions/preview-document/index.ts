@@ -7,6 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Maximum file size to process (10MB) - larger files exceed memory limits
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -59,7 +62,12 @@ serve(async (req) => {
       fileName = file.name;
     }
 
-    console.log('Previewing file:', fileName, file.type);
+    console.log('Previewing file:', fileName, file.type, 'size:', file.size);
+
+    // Check file size before processing
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB. Please upload a smaller file or split the PDF into parts.`);
+    }
 
     // Extract text based on file type
     let content = '';
@@ -73,25 +81,72 @@ serve(async (req) => {
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
       } else if (fileType === 'pdf') {
-        // Use unpdf for PDF files (edge-function compatible)
-        const { extractText } = await import('https://esm.sh/unpdf@0.11.0');
+        // Use unpdf for PDF files with memory-safe approach
+        const { extractText, getDocumentProxy } = await import('https://esm.sh/unpdf@0.11.0');
         const arrayBuffer = await file.arrayBuffer();
-        const result = await extractText(new Uint8Array(arrayBuffer));
-        // unpdf returns { text: string | string[], ... }
-        const text = result.text;
-        content = Array.isArray(text) ? text.join('\n\n') : String(text || '');
-        console.log('PDF extraction result type:', typeof result.text, 'length:', content.length);
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        console.log('Starting PDF extraction, size:', uint8Array.length);
+        
+        try {
+          // Try page-by-page extraction for better memory management
+          const pdf = await getDocumentProxy(uint8Array);
+          const numPages = pdf.numPages;
+          console.log('PDF has', numPages, 'pages');
+          
+          const textParts: string[] = [];
+          const maxPages = Math.min(numPages, 100); // Limit to first 100 pages
+          
+          for (let i = 1; i <= maxPages; i++) {
+            try {
+              const page = await pdf.getPage(i);
+              const textContent = await page.getTextContent();
+              const pageText = textContent.items
+                .map((item: any) => item.str || '')
+                .join(' ');
+              textParts.push(pageText);
+              
+              if (i % 10 === 0) {
+                console.log(`Processed ${i}/${maxPages} pages`);
+              }
+            } catch (pageError) {
+              console.warn(`Error extracting page ${i}:`, pageError);
+              // Continue with other pages
+            }
+          }
+          
+          content = textParts.join('\n\n');
+          
+          if (numPages > maxPages) {
+            content += `\n\n[Note: Document truncated. Showing first ${maxPages} of ${numPages} pages.]`;
+          }
+        } catch (pdfError) {
+          console.warn('Page-by-page extraction failed, trying bulk extraction:', pdfError);
+          // Fallback to bulk extraction
+          const result = await extractText(uint8Array);
+          const text = result.text;
+          content = Array.isArray(text) ? text.join('\n\n') : String(text || '');
+        }
+        
+        console.log('PDF extraction result length:', content.length);
       } else {
         // Fallback for text files
         content = await file.text();
       }
     } catch (extractionError) {
       console.error('Text extraction failed:', extractionError);
-      throw new Error(`Failed to extract text from ${fileType} file: ${extractionError instanceof Error ? extractionError.message : String(extractionError)}`);
+      const errorMessage = extractionError instanceof Error ? extractionError.message : String(extractionError);
+      
+      // Provide helpful error message for memory issues
+      if (errorMessage.includes('memory') || errorMessage.includes('Memory')) {
+        throw new Error(`PDF too large to process in memory. Please try a smaller file (under 10MB) or split into multiple documents.`);
+      }
+      
+      throw new Error(`Failed to extract text from ${fileType} file: ${errorMessage}`);
     }
 
     if (!content || content.trim().length < 10) {
-      throw new Error('No meaningful content extracted from document');
+      throw new Error('No meaningful content extracted from document. The file may be image-based or protected.');
     }
 
     // Create chunks preview
