@@ -83,21 +83,30 @@ serve(async (req) => {
 
     if (processError) {
       console.error('Failed to invoke process-document:', processError);
-      
-      // Update document with error
+
+      // Try to surface the real upstream error body (process-document returns JSON { error: "..." })
+      let upstreamDetails: string | null = null;
+      try {
+        const ctx = (processError as any)?.context;
+        if (ctx && typeof ctx.clone === 'function') {
+          const payload = await ctx.clone().json().catch(() => null);
+          upstreamDetails = payload?.error || payload?.details || null;
+        }
+      } catch (e) {
+        console.warn('Could not parse upstream error body:', e);
+      }
+
+      // Do NOT overwrite processing_error here (process-document already writes a specific error)
       await supabaseClient
         .from('documents')
-        .update({ 
-          processing_status: 'failed',
-          processing_error: processError.message || 'Failed to start processing'
-        })
+        .update({ processing_status: 'failed' })
         .eq('id', documentId);
 
       return new Response(
-        JSON.stringify({ 
-          error: 'Failed to start processing', 
-          details: processError.message,
-          documentId 
+        JSON.stringify({
+          error: 'Failed to start processing',
+          details: upstreamDetails || processError.message,
+          documentId
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

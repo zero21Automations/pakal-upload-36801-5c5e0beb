@@ -128,6 +128,8 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
+            // Force valid JSON output to prevent parsing failures from unescaped quotes (e.g., צה"ל)
+            response_format: { type: 'json_object' },
             messages: [
               {
                 role: 'system',
@@ -165,27 +167,27 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
         let rawContent = classificationData.choices[0].message.content;
         console.log('Raw AI response:', rawContent);
         
-        // Clean up markdown code blocks if present
-        if (rawContent.includes('```json')) {
-          rawContent = rawContent.replace(/```json\s*/, '').replace(/\s*```$/, '');
-        } else if (rawContent.includes('```')) {
-          rawContent = rawContent.replace(/```\s*/, '').replace(/\s*```$/, '');
+        // Ensure we parse clean JSON. (With response_format=json_object this should already be valid.)
+        let jsonText = rawContent.trim();
+
+        // Safety: strip markdown code fences if the model ever returns them.
+        if (jsonText.includes('```')) {
+          jsonText = jsonText
+            .replace(/```json\s*/i, '')
+            .replace(/```\s*/g, '')
+            .replace(/\s*```$/g, '')
+            .trim();
         }
-        
-        // Fix Hebrew quotation marks that break JSON parsing
-        // Replace standalone Hebrew quotes and problematic patterns
-        const trimmedContent = rawContent.trim()
-          .replace(/״/g, '') // Remove Hebrew opening quotes
-          .replace(/״/g, '') // Remove Hebrew closing quotes  
-          .replace(/פק"ל/g, 'פקל'); // Replace the specific problematic term
-        
-        classification = JSON.parse(trimmedContent);
-        
+
+        classification = JSON.parse(jsonText);
+
         // Validate classification structure
-        if (!classification.level || !classification.confidence || !classification.reasoning) {
+        if (!['L1', 'L2', 'L3'].includes(classification.level) ||
+            typeof classification.confidence !== 'number' ||
+            typeof classification.reasoning !== 'string') {
           throw new Error('Invalid classification response structure');
         }
-        
+
         console.log('Classification successful:', classification);
         break;
         
