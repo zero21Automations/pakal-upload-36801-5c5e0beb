@@ -51,39 +51,54 @@ serve(async (req) => {
       throw new Error('Document not found');
     }
 
-    // Check file size BEFORE downloading - edge functions have 150MB memory limit
-    const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB max to be safe
-    if (document.file_size > MAX_FILE_SIZE) {
-      const sizeMB = (document.file_size / 1024 / 1024).toFixed(1);
-      throw new Error(`הקובץ גדול מדי (${sizeMB}MB). הגודל המקסימלי הוא 8MB. נא לפצל את הקובץ או להעלות גרסה קטנה יותר.`);
-    }
-
-    // Extract text using preview-document (no file download needed)
+    // Check if this is a Padlet document (already has content in description, no file to download)
+    const isPadletDoc = document.document_type === 'padlet' || document.content_type === 'external';
+    
     let content = '';
     
-    try {
-      const { data: previewData, error: previewError } = await supabaseClient.functions.invoke('preview-document', {
-        body: {
-          bucket: 'documents',
-          path: document.file_path,
-          filename: document.filename
+    if (isPadletDoc) {
+      // For Padlet documents, use the description field directly
+      console.log('Processing Padlet document - using description as content');
+      content = document.description || '';
+      
+      if (!content || content.trim().length < 10) {
+        throw new Error('מסמך Padlet ריק או קצר מדי');
+      }
+      
+      console.log('Padlet content length:', content.length);
+    } else {
+      // Check file size BEFORE downloading - edge functions have 150MB memory limit
+      const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB max to be safe
+      if (document.file_size > MAX_FILE_SIZE) {
+        const sizeMB = (document.file_size / 1024 / 1024).toFixed(1);
+        throw new Error(`הקובץ גדול מדי (${sizeMB}MB). הגודל המקסימלי הוא 8MB. נא לפצל את הקובץ או להעלות גרסה קטנה יותר.`);
+      }
+
+      // Extract text using preview-document (for regular uploaded files)
+      try {
+        const { data: previewData, error: previewError } = await supabaseClient.functions.invoke('preview-document', {
+          body: {
+            bucket: 'documents',
+            path: document.file_path,
+            filename: document.filename
+          }
+        });
+        
+        if (previewError) {
+          console.error('Preview error:', previewError);
+          throw new Error(previewError.message || 'Failed to extract text from file');
         }
-      });
-      
-      if (previewError) {
-        console.error('Preview error:', previewError);
-        throw new Error(previewError.message || 'Failed to extract text from file');
+        
+        if (!previewData?.fullContent) {
+          throw new Error(previewData?.error || 'Failed to extract text from file');
+        }
+        
+        content = previewData.fullContent;
+        console.log('Text extraction successful, length:', content.length);
+      } catch (extractionError) {
+        console.error('Text extraction failed:', extractionError);
+        throw new Error(`Failed to extract text from ${document.file_type} file: ${extractionError instanceof Error ? extractionError.message : String(extractionError)}`);
       }
-      
-      if (!previewData?.fullContent) {
-        throw new Error(previewData?.error || 'Failed to extract text from file');
-      }
-      
-      content = previewData.fullContent;
-      console.log('Text extraction successful, length:', content.length);
-    } catch (extractionError) {
-      console.error('Text extraction failed:', extractionError);
-      throw new Error(`Failed to extract text from ${document.file_type} file: ${extractionError instanceof Error ? extractionError.message : String(extractionError)}`);
     }
 
     if (!content || content.trim().length < 10) {
