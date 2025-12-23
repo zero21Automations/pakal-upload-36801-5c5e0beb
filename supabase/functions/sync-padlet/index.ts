@@ -24,6 +24,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -58,8 +59,8 @@ serve(async (req) => {
       body: JSON.stringify({
         url: PADLET_URL,
         formats: ['markdown', 'html'],
-        onlyMainContent: false, // Get full page to capture all posts
-        waitFor: 5000, // Wait for dynamic content to load
+        onlyMainContent: false,
+        waitFor: 5000,
       }),
     });
 
@@ -83,7 +84,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Padlet content too short or empty. The page might require authentication or has no public content.',
+          error: 'Padlet content too short or empty.',
           contentLength: markdown.length 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -91,44 +92,54 @@ serve(async (req) => {
     }
 
     // Parse Padlet posts from markdown
-    // Padlet posts are usually separated by headers or sections
     const posts = parsePadletContent(markdown);
     console.log('Parsed posts count:', posts.length);
 
-    // Store each post as a document
+    // Get all existing Padlet documents
+    const { data: existingDocs, error: fetchError } = await supabase
+      .from('documents')
+      .select('id, title, description')
+      .eq('document_type', 'padlet');
+
+    if (fetchError) {
+      console.error('Error fetching existing docs:', fetchError);
+    }
+
+    const existingTitles = new Set((existingDocs || []).map(d => d.title));
+    const scrapedTitles = new Set(posts.map(p => p.title));
+
+    // Store sync results
     const results = {
       created: 0,
       updated: 0,
+      deleted: 0,
       failed: 0,
       posts: [] as string[],
     };
 
+    // Sync each scraped post
     for (const post of posts) {
       try {
-        // Check if this post already exists (by title match)
-        const { data: existing } = await supabase
-          .from('documents')
-          .select('id')
-          .eq('document_type', 'padlet')
-          .eq('title', post.title)
-          .maybeSingle();
+        const existingDoc = (existingDocs || []).find(d => d.title === post.title);
 
-        if (existing) {
-          // Update existing
-          const { error: updateError } = await supabase
-            .from('documents')
-            .update({
-              description: post.content,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existing.id);
+        if (existingDoc) {
+          // Check if content changed
+          if (existingDoc.description !== post.content) {
+            const { error: updateError } = await supabase
+              .from('documents')
+              .update({
+                description: post.content,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingDoc.id);
 
-          if (updateError) {
-            console.error('Error updating post:', updateError);
-            results.failed++;
-          } else {
-            results.updated++;
-            results.posts.push(post.title);
+            if (updateError) {
+              console.error('Error updating post:', updateError);
+              results.failed++;
+            } else {
+              results.updated++;
+              results.posts.push(`עדכון: ${post.title}`);
+            }
           }
         } else {
           // Create new document
@@ -153,7 +164,7 @@ serve(async (req) => {
             results.failed++;
           } else {
             results.created++;
-            results.posts.push(post.title);
+            results.posts.push(`חדש: ${post.title}`);
           }
         }
       } catch (postError) {
@@ -162,12 +173,45 @@ serve(async (req) => {
       }
     }
 
+    // Delete posts that no longer exist in Padlet
+    for (const existingDoc of (existingDocs || [])) {
+      if (!scrapedTitles.has(existingDoc.title)) {
+        try {
+          // Also delete associated chunks
+          const { error: chunksError } = await supabase
+            .from('chunks')
+            .delete()
+            .eq('source_id', existingDoc.id);
+
+          if (chunksError) {
+            console.error('Error deleting chunks for removed post:', chunksError);
+          }
+
+          const { error: deleteError } = await supabase
+            .from('documents')
+            .delete()
+            .eq('id', existingDoc.id);
+
+          if (deleteError) {
+            console.error('Error deleting removed post:', deleteError);
+            results.failed++;
+          } else {
+            results.deleted++;
+            results.posts.push(`נמחק: ${existingDoc.title}`);
+          }
+        } catch (deleteError) {
+          console.error('Error deleting post:', deleteError);
+          results.failed++;
+        }
+      }
+    }
+
     console.log('Sync results:', results);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Synced ${results.created + results.updated} posts from Padlet`,
+        message: `סונכרנו ${results.created} חדשים, ${results.updated} עודכנו, ${results.deleted} נמחקו`,
         results,
         rawContentLength: markdown.length,
       }),

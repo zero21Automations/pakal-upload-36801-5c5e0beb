@@ -365,7 +365,7 @@ export default function KnowledgeManagement() {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .eq('document_type', 'content')
+        .in('document_type', ['content', 'padlet'])
         .in('status', ['מאושר', 'ממתין לאישור'])
         .order('created_at', { ascending: false });
 
@@ -1430,13 +1430,23 @@ export default function KnowledgeManagement() {
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors"
                       >
                         <div className="flex items-center gap-4">
-                          <FileText className="h-8 w-8 text-primary" />
+                          {doc.document_type === 'padlet' ? (
+                            <ExternalLink className="h-8 w-8 text-orange-500" />
+                          ) : (
+                            <FileText className="h-8 w-8 text-primary" />
+                          )}
                           <div>
                             <h3 className="font-medium">{doc.title}</h3>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <Badge variant={doc.document_level === 'L1' ? 'default' : doc.document_level === 'L2' ? 'secondary' : 'outline'}>
-                                {formatDocLevel(doc.document_level)}
-                              </Badge>
+                              {doc.document_type === 'padlet' ? (
+                                <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+                                  Padlet
+                                </Badge>
+                              ) : (
+                                <Badge variant={doc.document_level === 'L1' ? 'default' : doc.document_level === 'L2' ? 'secondary' : 'outline'}>
+                                  {formatDocLevel(doc.document_level)}
+                                </Badge>
+                              )}
                               <Badge variant={doc.status === 'מאושר' ? 'default' : 'secondary'}>
                               {doc.status}
                             </Badge>
