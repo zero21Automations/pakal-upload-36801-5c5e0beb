@@ -15,20 +15,42 @@ serve(async (req) => {
   }
 
   try {
-    // Get user_id from request body
-    const { user_id } = await req.json().catch(() => ({}));
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    // Get user from authorization header instead of request body
+    const authHeader = req.headers.get('authorization');
+    let user_id: string | null = null;
+
+    if (authHeader && supabaseUrl && supabaseAnonKey) {
+      const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      
+      const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+      
+      if (!authError && user) {
+        user_id = user.id;
+        console.log('User authenticated from token:', user_id);
+      }
+    }
+
+    // Fallback to request body for backward compatibility
+    if (!user_id) {
+      const body = await req.json().catch(() => ({}));
+      user_id = body.user_id;
+      console.log('User from request body (legacy):', user_id);
+    }
     
     if (!user_id) {
       return new Response(
-        JSON.stringify({ success: false, error: 'User ID is required' }),
+        JSON.stringify({ success: false, error: 'User ID is required - provide auth token or user_id in body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
     if (!firecrawlApiKey) {
       console.error('FIRECRAWL_API_KEY not configured');
       return new Response(
