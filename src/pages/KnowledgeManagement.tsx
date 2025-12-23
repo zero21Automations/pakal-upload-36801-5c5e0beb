@@ -36,6 +36,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { ProcessingStatusBadge } from "@/components/ProcessingStatusBadge";
 
 interface CoreDocument {
@@ -78,6 +79,8 @@ interface PakalTerm {
 export default function KnowledgeManagement() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { role } = useUserRole();
+  const isMentor = role === 'mentor';
   
   // Core document state
   const [coreDoc, setCoreDoc] = useState<CoreDocument | null>(null);
@@ -126,6 +129,7 @@ export default function KnowledgeManagement() {
   // System insights state
   const [isSystemInsightsOpen, setIsSystemInsightsOpen] = useState(false);
   const [syncingPadlet, setSyncingPadlet] = useState(false);
+  const [purgingPadlet, setPurgingPadlet] = useState(false);
   const [analytics, setAnalytics] = useState({
     totalDocuments: 0,
     pendingApprovals: 0,
@@ -765,12 +769,15 @@ export default function KnowledgeManagement() {
     if (!window.confirm('האם אתה בטוח שברצונך למחוק מסמך זה?')) return;
 
     try {
-      const { error } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', docId);
+      const { data, error } = await supabase.functions.invoke('manage-documents', {
+        body: { action: 'delete', documentId: docId }
+      });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to delete document');
+      }
 
       setContentDocs(contentDocs.filter(d => d.id !== docId));
       toast({
@@ -778,8 +785,10 @@ export default function KnowledgeManagement() {
       });
     } catch (error) {
       console.error('Error deleting content document:', error);
+      const errorMessage = error instanceof Error ? error.message : 'שגיאה לא ידועה';
       toast({
         title: "שגיאה במחיקת המסמך",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -976,16 +985,15 @@ export default function KnowledgeManagement() {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('documents')
-        .update({
-          status: 'מאושר',
-          approved_at: new Date().toISOString(),
-          approved_by: user.id,
-        })
-        .eq('id', docId);
+      const { data, error } = await supabase.functions.invoke('manage-documents', {
+        body: { action: 'approve', documentId: docId }
+      });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to approve document');
+      }
 
       // Update local state immediately
       setContentDocs(prev => prev.map(doc => 
@@ -1000,10 +1008,64 @@ export default function KnowledgeManagement() {
       fetchContentDocuments();
     } catch (error) {
       console.error('Error approving document:', error);
+      const errorMessage = error instanceof Error ? error.message : 'שגיאה לא ידועה';
       toast({
         title: "שגיאה באישור המסמך",
+        description: errorMessage,
         variant: "destructive",
       });
+    }
+  };
+
+  const handlePurgePadlet = async () => {
+    if (!isMentor) {
+      toast({
+        title: "אין הרשאה",
+        description: "רק מנטור יכול למחוק את כל מסמכי Padlet",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const padletCount = contentDocs.filter(d => d.document_type === 'padlet').length;
+    if (padletCount === 0) {
+      toast({
+        title: "אין מסמכים",
+        description: "אין מסמכי Padlet למחיקה",
+      });
+      return;
+    }
+
+    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את כל ${padletCount} מסמכי Padlet?`)) return;
+
+    setPurgingPadlet(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-documents', {
+        body: { action: 'purgePadlet' }
+      });
+
+      if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to purge padlet documents');
+      }
+
+      toast({
+        title: "נמחקו בהצלחה",
+        description: data.message || `נמחקו ${data.deletedCount} מסמכי Padlet`,
+      });
+      
+      fetchContentDocuments();
+    } catch (error) {
+      console.error('Error purging padlet:', error);
+      const errorMessage = error instanceof Error ? error.message : 'שגיאה לא ידועה';
+      toast({
+        title: "שגיאה במחיקת מסמכי Padlet",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setPurgingPadlet(false);
     }
   };
 
@@ -1306,6 +1368,18 @@ export default function KnowledgeManagement() {
                     <ExternalLink className="h-4 w-4 ml-1" />
                     {syncingPadlet ? "מסנכרן..." : "סנכרן Padlet"}
                   </Button>
+                  {isMentor && contentDocs.some(d => d.document_type === 'padlet') && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handlePurgePadlet}
+                      disabled={purgingPadlet}
+                      className="border-red-500 text-red-600 hover:bg-red-50"
+                    >
+                      <XCircle className="h-4 w-4 ml-1" />
+                      {purgingPadlet ? "מוחק..." : "מחק הכל Padlet"}
+                    </Button>
+                  )}
                   <Button 
                     variant="ghost" 
                     size="sm"
@@ -1467,7 +1541,7 @@ export default function KnowledgeManagement() {
                           <span className="text-xs text-muted-foreground">
                             {new Date(doc.created_at).toLocaleDateString('he-IL')}
                           </span>
-                          {doc.status === 'ממתין לאישור' ? (
+                          {doc.status === 'ממתין לאישור' && isMentor ? (
                             <Button
                               variant="default"
                               size="sm"
@@ -1477,16 +1551,15 @@ export default function KnowledgeManagement() {
                               <CheckCircle className="h-4 w-4 ml-1" />
                               אשר
                             </Button>
+                          ) : doc.status === 'ממתין לאישור' && !isMentor ? (
+                            <Badge variant="secondary" className="text-orange-600">
+                              ממתין לאישור מנטור
+                            </Badge>
                           ) : doc.status === 'מאושר' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled
-                              className="text-green-600 border-green-600"
-                            >
-                              <CheckCircle className="h-4 w-4 ml-1" />
+                            <Badge variant="outline" className="text-green-600 border-green-600">
+                              <CheckCircle className="h-3 w-3 ml-1" />
                               מאושר
-                            </Button>
+                            </Badge>
                           ) : null}
                           {doc.processing_status === 'failed' && (
                             <Button

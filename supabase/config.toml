@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.sync-padlet]
 verify_jwt = false
+
+[functions.manage-documents]
+verify_jwt = false
