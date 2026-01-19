@@ -279,18 +279,60 @@ function parsePadletContent(markdown: string): Array<{ title: string; content: s
     const trimmed = section.trim();
     if (!trimmed || trimmed.length < 20) continue;
     
-    // Extract title from first line
+    // Extract title - look for first real text line, skipping images and links
     const lines = trimmed.split('\n');
-    let title = lines[0].replace(/^#+\s*/, '').trim();
+    let title = '';
+    let contentStartIndex = 0;
     
-    // If no header, use first 50 chars as title
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].replace(/^#+\s*/, '').trim();
+      
+      // Skip empty lines
+      if (!line) continue;
+      
+      // Skip lines that are just image markdown: ![...](...)
+      if (/^!\[.*?\]\(.*?\)$/.test(line)) continue;
+      
+      // Skip lines that are just link markdown starting with image: [![...](...)...]
+      if (/^\[!\[.*?\]\(.*?\)\]/.test(line)) continue;
+      
+      // Skip lines that are just URLs
+      if (/^https?:\/\//.test(line)) continue;
+      
+      // Skip lines that look like image URLs in any form
+      if (line.includes('padlet.pics') || line.includes('padlet.net/wallpapers')) continue;
+      
+      // Found a valid text line for title
+      title = line;
+      contentStartIndex = i + 1;
+      break;
+    }
+    
+    // If no valid title found, try to extract from content
     if (!title || title.length < 3) {
-      title = trimmed.substring(0, 50).replace(/\n/g, ' ').trim();
-      if (title.length === 50) title += '...';
+      // Get first non-image text from content
+      const cleanContent = trimmed
+        .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images
+        .replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g, '') // Remove image links
+        .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+        .trim();
+      
+      const firstTextMatch = cleanContent.match(/[א-תa-zA-Z].{2,49}/);
+      if (firstTextMatch) {
+        title = firstTextMatch[0].trim();
+        if (title.length === 50) title += '...';
+      } else {
+        title = 'תוכן Padlet';
+      }
+    }
+    
+    // Truncate long titles
+    if (title.length > 60) {
+      title = title.substring(0, 57) + '...';
     }
     
     // Content is everything after the title
-    const content = lines.slice(1).join('\n').trim() || trimmed;
+    const content = lines.slice(contentStartIndex).join('\n').trim() || trimmed;
     
     // Skip very short or empty posts
     if (content.length < 20) continue;
@@ -305,7 +347,18 @@ function parsePadletContent(markdown: string): Array<{ title: string; content: s
       const para = paragraphs[i].trim();
       if (para.length < 30) continue;
       
-      const title = para.substring(0, 50).replace(/\n/g, ' ').trim() + (para.length > 50 ? '...' : '');
+      // Clean the paragraph to get title
+      const cleanPara = para
+        .replace(/!\[.*?\]\(.*?\)/g, '')
+        .replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g, '')
+        .replace(/https?:\/\/[^\s]+/g, '')
+        .trim();
+      
+      const firstTextMatch = cleanPara.match(/[א-תa-zA-Z].{2,49}/);
+      const title = firstTextMatch 
+        ? firstTextMatch[0].trim() + (cleanPara.length > 50 ? '...' : '')
+        : 'תוכן Padlet';
+      
       posts.push({ title, content: para });
     }
   }
@@ -313,7 +366,7 @@ function parsePadletContent(markdown: string): Array<{ title: string; content: s
   // If still no posts, treat entire content as one post
   if (posts.length === 0 && markdown.length > 50) {
     posts.push({
-      title: 'Padlet Content',
+      title: 'תוכן Padlet',
       content: markdown,
     });
   }
