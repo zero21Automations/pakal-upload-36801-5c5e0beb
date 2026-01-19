@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { SystemInsightsWindow } from "@/components/SystemInsightsWindow";
 import { Navigation } from "@/components/Navigation";
 import { DocumentPreview } from "@/components/DocumentPreview";
+import { DocumentViewerDialog } from "@/components/DocumentViewerDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,8 @@ import {
   Filter,
   PlayCircle,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Eye
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +58,8 @@ interface ContentDocument {
   id: string;
   title: string;
   filename: string;
+  file_path: string;
+  file_type: string | null;
   document_level: string | null;
   document_type: string;
   status: string;
@@ -108,6 +112,10 @@ export default function KnowledgeManagement() {
   const [contentPreview, setContentPreview] = useState<any>(null);
   const [isPreviewingCore, setIsPreviewingCore] = useState(false);
   const [corePreview, setCorePreview] = useState<any>(null);
+  
+  // Document viewer dialog state
+  const [isViewerDialogOpen, setIsViewerDialogOpen] = useState(false);
+  const [viewingDocument, setViewingDocument] = useState<ContentDocument | null>(null);
 
   // Manual processing state
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
@@ -1577,6 +1585,17 @@ export default function KnowledgeManagement() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
+                              setViewingDocument(doc);
+                              setIsViewerDialogOpen(true);
+                            }}
+                            title="תצוגה מקדימה"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
                               setEditingContentDoc(doc);
                               setIsEditContentDialogOpen(true);
                             }}
@@ -1902,6 +1921,13 @@ export default function KnowledgeManagement() {
           analytics={analytics}
         />
       )}
+
+      {/* Document Viewer Dialog */}
+      <DocumentViewerDialog
+        open={isViewerDialogOpen}
+        onOpenChange={setIsViewerDialogOpen}
+        document={viewingDocument}
+      />
     </div>
   );
 }
