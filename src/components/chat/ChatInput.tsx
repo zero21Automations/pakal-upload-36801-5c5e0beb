@@ -87,21 +87,6 @@ export const ChatInput = ({ value, onChange, onSend, disabled, mode }: ChatInput
 
   return (
     <div className="space-y-3">
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-2 justify-center">
-        {quickActions[mode].map((action) => (
-          <Badge
-            key={action}
-            variant="secondary"
-            className="cursor-pointer transition-all hover:bg-secondary/80 hover:scale-105"
-            onClick={() => handleQuickAction(action)}
-          >
-            <Zap className="h-3 w-3 ml-1" />
-            {action}
-          </Badge>
-        ))}
-      </div>
-
       {/* Input Area */}
       <Card className={cn(
         "transition-all duration-200",
