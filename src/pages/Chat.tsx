@@ -197,8 +197,9 @@ const Chat = () => {
       if (!conversationId) return;
     }
 
+    const tempUserMessageId = `temp-${Date.now()}`;
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: tempUserMessageId,
       content: messageContent,
       isUser: true,
       timestamp: new Date(),
@@ -208,11 +209,20 @@ const Chat = () => {
     setInputValue('');
     setIsLoading(true);
     
-    // Save user message to database
-    await saveMessage({
+    // Save user message to database and update with real ID
+    const savedUserMessageId = await saveMessage({
       content: messageContent,
       isUser: true
     }, conversationId);
+
+    // Update the temp ID to the real database ID to prevent duplicates from realtime subscription
+    if (savedUserMessageId) {
+      setMessages(prev => prev.map(msg => 
+        msg.id === tempUserMessageId 
+          ? { ...msg, id: savedUserMessageId }
+          : msg
+      ));
+    }
 
     // Create placeholder for assistant message
     const assistantMessageId = (Date.now() + 1).toString();
