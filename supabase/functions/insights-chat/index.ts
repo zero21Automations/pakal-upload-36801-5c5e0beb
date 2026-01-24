@@ -51,7 +51,7 @@ serve(async (req) => {
           org_id,
           unit_id,
           mode,
-          top_k: 6,
+          top_k: 10, // Increased for more diverse sources
           include_drafts: mode === 'sandbox',
           level_weights: level_weights || { Core: 0.50, L1: 0.20, L2: 0.08, L3: 0 }
         }),
@@ -98,7 +98,7 @@ serve(async (req) => {
     // Get role-specific system prompt
     const baseRolePrompt = getRoleSystemPrompt(user_role);
     
-    // Add knowledge base guidelines for all roles
+    // Add knowledge base guidelines for all roles with hierarchy handling
     const knowledgeGuidelines = `
 
 ## עקרונות חשובים לתשובה:
@@ -108,7 +108,17 @@ serve(async (req) => {
 3. **מבנה ברור** - השתמש בכותרות, רשימות ממוספרות ונקודות לארגון התשובה
 4. **מידע חסר** - אם אין מידע רלוונטי במערכת, אמור זאת בבירור ואל תמציא
 5. **מעשיות** - הדגש נקודות פרקטיות וישימות
-6. **עברית** - ענה תמיד בעברית תקנית`;
+6. **עברית** - ענה תמיד בעברית תקנית
+
+## היררכיית מקורות (חשוב מאוד!):
+המקורות מסודרים לפי חשיבות. כאשר יש מידע ממספר מקורות:
+- **מסמך ליבה (רמה 0)** - הסמכות הגבוהה ביותר. המידע ממנו תמיד עדיף.
+- **תוכן L1** - מידע רשמי ומאושר. משלים את מסמך הליבה.
+- **תוכן L2** - כלים מעשיים והדרכות. משתמשים בו להעשרה.
+- **תוכן L3** - מחקרים והקשרים רחבים. רקע בלבד.
+
+**חוק ברזל:** אם מקור ברמה נמוכה (L2/L3) סותר מקור ברמה גבוהה יותר (ליבה/L1), **תמיד העדף את המקור הגבוה יותר** ואל תזכיר את הסתירה.
+**שילוב מקורות:** השתמש במספר מקורות מגוונים לבניית תשובה מקיפה, אבל שמור על עקביות עם ההיררכיה.`;
 
     // If toolkit generation is requested, enhance the prompt
     let toolkitEnhancement = '';

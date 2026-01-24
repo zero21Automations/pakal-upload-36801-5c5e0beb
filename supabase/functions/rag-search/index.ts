@@ -45,7 +45,7 @@ serve(async (req) => {
       org_id, 
       unit_id, 
       mode = 'insights',
-      top_k = 8,
+      top_k = 12, // Increased for better diversity
       level_weights = { Core: 0.50, L1: 0.20, L2: 0.08, L3: 0 },
       include_drafts = false
     }: SearchRequest = await req.json();
@@ -262,29 +262,64 @@ serve(async (req) => {
       .filter(r => r.similarity > 0.2)
       // Sort by boosted score (descending)
       .sort((a, b) => b.boosted_score - a.boosted_score)
-      // Take top_k results
-      .slice(0, Math.min(top_k, 16)); // max 16 as per global rules
+      // Take more results initially to allow for diversity filtering
+      .slice(0, Math.min(top_k * 2, 24));
 
-    // Apply diversity filter (max 2 chunks per source)
+    // Apply enhanced diversity filter:
+    // - Max 2 chunks per source (to get diverse sources)
+    // - Prioritize higher-level sources (Core > L1 > L2 > L3)
+    // - Ensure at least 3 unique sources if available
     const diversityFiltered: SearchResult[] = [];
     const sourceCountMap = new Map<string, number>();
-
-    for (const result of scoredResults) {
-      const sourceCount = sourceCountMap.get(result.source_id) || 0;
-      if (sourceCount < 2) {
+    const uniqueSources = new Set<string>();
+    
+    // First pass: ensure we get at least one chunk from each unique high-level source
+    const sortedByLevel = [...scoredResults].sort((a, b) => a.level - b.level);
+    
+    for (const result of sortedByLevel) {
+      if (uniqueSources.size < 5 && !uniqueSources.has(result.source_id)) {
         diversityFiltered.push({
           chunk_id: result.chunk_id,
           source_id: result.source_id,
           content: result.content,
           level: result.level,
           confidence: result.confidence,
-          metadata: result.metadata,
+          metadata: { ...result.metadata, source_type: (result as any).source_type },
+          source_title: result.source_title,
+          source_status: result.source_status
+        });
+        uniqueSources.add(result.source_id);
+        sourceCountMap.set(result.source_id, 1);
+      }
+    }
+    
+    // Second pass: fill remaining slots with best scoring chunks (max 2 per source)
+    for (const result of scoredResults) {
+      if (diversityFiltered.length >= top_k) break;
+      
+      const sourceCount = sourceCountMap.get(result.source_id) || 0;
+      const alreadyIncluded = diversityFiltered.some(r => r.chunk_id === result.chunk_id);
+      
+      if (!alreadyIncluded && sourceCount < 2) {
+        diversityFiltered.push({
+          chunk_id: result.chunk_id,
+          source_id: result.source_id,
+          content: result.content,
+          level: result.level,
+          confidence: result.confidence,
+          metadata: { ...result.metadata, source_type: (result as any).source_type },
           source_title: result.source_title,
           source_status: result.source_status
         });
         sourceCountMap.set(result.source_id, sourceCount + 1);
       }
     }
+    
+    // Final sort by level (hierarchy) then confidence
+    diversityFiltered.sort((a, b) => {
+      if (a.level !== b.level) return a.level - b.level;
+      return b.confidence - a.confidence;
+    });
 
     // Calculate metadata for insights
     const levelDistribution = {
