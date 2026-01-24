@@ -18,8 +18,15 @@ import {
   LayoutDashboard,
   Search,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  FileText,
+  Database,
+  Clock,
+  CheckCircle2,
+  Loader2,
+  XCircle
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 const Insights = () => {
   const { toast } = useToast();
@@ -29,7 +36,8 @@ const Insights = () => {
   const { 
     loading, 
     error, 
-    usageStats, 
+    usageStats,
+    documentStats,
     chatInsights, 
     knowledgeGaps,
     usageTrends,
@@ -207,6 +215,210 @@ const Insights = () => {
                   {usageStats.satisfactionRate > 0 ? 'מעל היעד' : 'נדרשת מערכת דירוג'}
                 </span>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Document Statistics */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">סה״כ מסמכים</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-bold">{documentStats.total}</p>
+                  )}
+                </div>
+                <FileText className="h-8 w-8 text-primary" />
+              </div>
+              <div className="flex items-center gap-1 mt-2">
+                {loading ? (
+                  <Skeleton className="h-4 w-24" />
+                ) : (
+                  <span className="text-sm text-muted-foreground">
+                    {documentStats.totalChunks.toLocaleString()} קטעי תוכן
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">מאושרים</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-success">{documentStats.approved}</p>
+                  )}
+                </div>
+                <CheckCircle2 className="h-8 w-8 text-success" />
+              </div>
+              <div className="flex items-center gap-1 mt-2">
+                {loading ? (
+                  <Skeleton className="h-4 w-24" />
+                ) : documentStats.total > 0 ? (
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round((documentStats.approved / documentStats.total) * 100)}% מהתוכן
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">אין מסמכים</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">ממתינים לאישור</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-warning">{documentStats.pending}</p>
+                  )}
+                </div>
+                <Clock className="h-8 w-8 text-warning" />
+              </div>
+              <div className="flex items-center gap-1 mt-2">
+                {loading ? (
+                  <Skeleton className="h-4 w-24" />
+                ) : documentStats.processing > 0 ? (
+                  <span className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {documentStats.processing} בעיבוד
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">אין בעיבוד</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">שגיאות</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-destructive">{documentStats.failed}</p>
+                  )}
+                </div>
+                <XCircle className="h-8 w-8 text-destructive" />
+              </div>
+              <div className="flex items-center gap-1 mt-2">
+                {loading ? (
+                  <Skeleton className="h-4 w-24" />
+                ) : documentStats.failed > 0 ? (
+                  <span className="text-sm text-destructive">דורש טיפול</span>
+                ) : (
+                  <span className="text-sm text-success">הכל תקין</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Content Level Distribution & Recent Uploads */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                התפלגות רמות תוכן
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map(i => (
+                    <Skeleton key={i} className="h-8 w-full" />
+                  ))}
+                </div>
+              ) : documentStats.byLevel.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>אין מסמכים במערכת</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {documentStats.byLevel.map((level, index) => {
+                    const percentage = documentStats.total > 0 
+                      ? Math.round((level.count / documentStats.total) * 100) 
+                      : 0;
+                    const colors = [
+                      'bg-primary',
+                      'bg-accent',
+                      'bg-secondary',
+                      'bg-muted-foreground'
+                    ];
+                    return (
+                      <div key={index} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">{level.level}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {level.count} ({percentage}%)
+                          </span>
+                        </div>
+                        <Progress value={percentage} className="h-2" />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                העלאות אחרונות
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : documentStats.recentUploads.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>אין העלאות אחרונות</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {documentStats.recentUploads.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm truncate">{doc.title}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge 
+                          variant={doc.status === 'מאושר' ? 'default' : 'secondary'}
+                          className="text-xs"
+                        >
+                          {doc.status}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(doc.created_at).toLocaleDateString('he-IL')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
