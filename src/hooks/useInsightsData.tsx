@@ -13,6 +13,17 @@ interface UsageStats {
   weeklyGrowth: number;
 }
 
+interface DocumentStats {
+  total: number;
+  pending: number;
+  approved: number;
+  processing: number;
+  failed: number;
+  byLevel: { level: string; count: number }[];
+  recentUploads: { id: string; title: string; status: string; created_at: string }[];
+  totalChunks: number;
+}
+
 interface ChatInsight {
   id: string;
   question: string;
@@ -48,6 +59,17 @@ export function useInsightsData(period: string = 'week', unitFilter: string = 'a
     satisfactionRate: 0,
     topUnits: [],
     weeklyGrowth: 0
+  });
+
+  const [documentStats, setDocumentStats] = useState<DocumentStats>({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    processing: 0,
+    failed: 0,
+    byLevel: [],
+    recentUploads: [],
+    totalChunks: 0
   });
   
   const [chatInsights, setChatInsights] = useState<ChatInsight[]>([]);
@@ -131,6 +153,63 @@ export function useInsightsData(period: string = 'week', unitFilter: string = 'a
         topUnits: [],
         weeklyGrowth
       });
+
+      // Fetch document statistics
+      const { data: documents, error: docsError } = await supabase
+        .from('documents')
+        .select('id, title, status, document_level, processing_status, created_at, chunks_count');
+      
+      if (!docsError && documents) {
+        const pending = documents.filter(d => d.status === 'ממתין לאישור').length;
+        const approved = documents.filter(d => d.status === 'מאושר').length;
+        const processing = documents.filter(d => d.processing_status === 'processing').length;
+        const failed = documents.filter(d => d.processing_status === 'failed').length;
+
+        // Group by level
+        const levelCounts: Record<string, number> = {};
+        documents.forEach(doc => {
+          const level = doc.document_level || 'לא מסווג';
+          levelCounts[level] = (levelCounts[level] || 0) + 1;
+        });
+        
+        const byLevel = Object.entries(levelCounts).map(([level, count]) => ({ level, count }));
+
+        // Recent uploads (last 5)
+        const recentUploads = documents
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 5)
+          .map(d => ({
+            id: d.id,
+            title: d.title,
+            status: d.status,
+            created_at: d.created_at
+          }));
+
+        // Total chunks
+        const totalChunks = documents.reduce((sum, d) => sum + (d.chunks_count || 0), 0);
+
+        // Fetch core documents too
+        const { data: coreDocs } = await supabase
+          .from('core_documents')
+          .select('id, title, processing_status, created_at, chunks_count');
+
+        const coreDocsCount = coreDocs?.length || 0;
+        const coreChunks = coreDocs?.reduce((sum, d) => sum + (d.chunks_count || 0), 0) || 0;
+
+        setDocumentStats({
+          total: documents.length + coreDocsCount,
+          pending,
+          approved,
+          processing,
+          failed,
+          byLevel: [
+            { level: 'מסמך ליבה', count: coreDocsCount },
+            ...byLevel
+          ],
+          recentUploads,
+          totalChunks: totalChunks + coreChunks
+        });
+      }
       
       // Analyze popular questions from chat_turns
       if (chatTurns && chatTurns.length > 0) {
@@ -230,6 +309,7 @@ export function useInsightsData(period: string = 'week', unitFilter: string = 'a
     loading,
     error,
     usageStats,
+    documentStats,
     chatInsights,
     knowledgeGaps,
     usageTrends,
