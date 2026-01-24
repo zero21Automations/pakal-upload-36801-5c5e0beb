@@ -541,9 +541,10 @@ const Chat = () => {
                           sender: message.isUser ? 'user' : 'bot',
                           timestamp: message.timestamp,
                           sources: (message.citations || []).map(c => ({
-                            id: c.source_id,
+                            id: c.chunk_id, // Use chunk_id for unique key
                             title: c.title,
                             level: mapLevelToSourceLevel(c.level),
+                            levelNumber: c.level, // Pass numeric level for badges
                             status: 'approved' as const
                           }))
                         }}

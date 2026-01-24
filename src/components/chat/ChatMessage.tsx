@@ -2,12 +2,18 @@ import { Message, Source } from "@/types/chat";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { User, Bot, Clock, Copy, Check, RotateCcw } from "lucide-react";
+import { User, Bot, Clock, Copy, Check, RotateCcw, FileText, BookOpen, Wrench, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { MarkdownContent } from "./MarkdownContent";
+
+// Extended source type that includes level number from citations
+interface ExtendedSource extends Source {
+  levelNumber?: number;
+  confidence?: number;
+}
 
 interface ChatMessageProps {
   message: Message;
@@ -50,6 +56,72 @@ export const ChatMessage = ({ message, onRegenerate }: ChatMessageProps) => {
       onRegenerate();
     }
   };
+
+  // Get level info from source - check for levelNumber first (from citations), then level string
+  const getLevelFromSource = (source: ExtendedSource): number => {
+    if (source.levelNumber !== undefined) return source.levelNumber;
+    switch (source.level) {
+      case 'org-core': return 0;
+      case 'unit-core': return 0;
+      case 'L1': return 1;
+      case 'L2': return 2;
+      case 'L3': return 3;
+      default: return 1;
+    }
+  };
+
+  const getLevelConfig = (level: number) => {
+    switch (level) {
+      case 0: return { 
+        label: 'ליבה', 
+        shortLabel: 'Core',
+        icon: BookOpen,
+        className: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400',
+        dotColor: 'bg-emerald-500'
+      };
+      case 1: return { 
+        label: 'רמה 1', 
+        shortLabel: 'L1',
+        icon: FileText,
+        className: 'bg-blue-500/15 text-blue-700 border-blue-500/30 dark:text-blue-400',
+        dotColor: 'bg-blue-500'
+      };
+      case 2: return { 
+        label: 'רמה 2', 
+        shortLabel: 'L2',
+        icon: Wrench,
+        className: 'bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400',
+        dotColor: 'bg-amber-500'
+      };
+      case 3: return { 
+        label: 'רמה 3', 
+        shortLabel: 'L3',
+        icon: GraduationCap,
+        className: 'bg-purple-500/15 text-purple-700 border-purple-500/30 dark:text-purple-400',
+        dotColor: 'bg-purple-500'
+      };
+      default: return { 
+        label: 'מסמך', 
+        shortLabel: 'Doc',
+        icon: FileText,
+        className: 'bg-muted text-muted-foreground border-border',
+        dotColor: 'bg-muted-foreground'
+      };
+    }
+  };
+
+  // Compute unique levels used in this message
+  const levelsUsed = useMemo(() => {
+    if (!message.sources || message.sources.length === 0) return [];
+    
+    const levels = new Set<number>();
+    message.sources.forEach((source) => {
+      const level = getLevelFromSource(source as ExtendedSource);
+      levels.add(level);
+    });
+    
+    return Array.from(levels).sort((a, b) => a - b);
+  }, [message.sources]);
 
   const getSourceIcon = (level: Source['level']) => {
     switch (level) {
@@ -234,30 +306,66 @@ export const ChatMessage = ({ message, onRegenerate }: ChatMessageProps) => {
               </div>
             )}
 
-            {/* Sources */}
+            {/* Level Badges - Show which document levels were used */}
+            {!isUser && levelsUsed.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-xs text-muted-foreground ml-1">מקורות:</span>
+                {levelsUsed.map((level) => {
+                  const config = getLevelConfig(level);
+                  const Icon = config.icon;
+                  return (
+                    <Tooltip key={level}>
+                      <TooltipTrigger asChild>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs font-medium gap-1 px-2 py-0.5 cursor-default",
+                            config.className
+                          )}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {config.shortLabel}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{config.label} - {level === 0 ? 'מסמך ליבה רשמי' : `תוכן רמה ${level}`}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Source Documents */}
             {message.sources && message.sources.length > 0 && (
               <div className="flex flex-wrap gap-2 max-w-full">
-                {message.sources.map((source) => (
-                  <Tooltip key={source.id}>
-                    <TooltipTrigger asChild>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-xs transition-all duration-200 cursor-pointer",
-                          "hover:scale-105 hover:shadow-md hover:bg-primary/10 hover:border-primary/30"
-                        )}
-                      >
-                        {source.title}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="text-xs max-w-xs">
-                        <p className="font-semibold mb-1">{source.title}</p>
-                        <p className="text-muted-foreground">מקור מידע</p>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
+                {message.sources.map((source) => {
+                  const level = getLevelFromSource(source as ExtendedSource);
+                  const config = getLevelConfig(level);
+                  return (
+                    <Tooltip key={source.id}>
+                      <TooltipTrigger asChild>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs transition-all duration-200 cursor-pointer gap-1.5",
+                            "hover:scale-105 hover:shadow-md",
+                            config.className
+                          )}
+                        >
+                          <span className={cn("w-1.5 h-1.5 rounded-full", config.dotColor)} />
+                          {source.title}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="text-xs max-w-xs">
+                          <p className="font-semibold mb-1">{source.title}</p>
+                          <p className="text-muted-foreground">{config.label}</p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
               </div>
             )}
 
