@@ -71,6 +71,8 @@ serve(async (req) => {
 
     // Extract text based on file type
     let content = '';
+    let excelData: any[][] | null = null;
+    let sheetNames: string[] = [];
     const fileType = fileName.split('.').pop()?.toLowerCase();
     
     try {
@@ -80,6 +82,29 @@ serve(async (req) => {
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
+      } else if (fileType === 'xlsx' || fileType === 'xls') {
+        // Use SheetJS for Excel files
+        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        
+        sheetNames = workbook.SheetNames;
+        console.log('Excel has', sheetNames.length, 'sheets:', sheetNames);
+        
+        // Get data from first sheet as 2D array
+        const firstSheet = workbook.Sheets[sheetNames[0]];
+        excelData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' }) as any[][];
+        
+        // Also create text content for search/fallback
+        const textParts: string[] = [];
+        for (const sheetName of sheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const text = XLSX.utils.sheet_to_csv(sheet);
+          textParts.push(`=== ${sheetName} ===\n${text}`);
+        }
+        content = textParts.join('\n\n');
+        
+        console.log('Excel extraction: rows:', excelData.length, 'sheets:', sheetNames.length);
       } else if (fileType === 'pdf') {
         // Use unpdf for PDF files with memory-safe approach
         const { extractText, getDocumentProxy } = await import('https://esm.sh/unpdf@0.11.0');
@@ -204,6 +229,9 @@ serve(async (req) => {
         sampleChunks,
         fullContentLength: content.length,
         isContentTruncated: content.length > 2000,
+        // Excel-specific data
+        excelData: excelData,
+        sheetNames: sheetNames.length > 0 ? sheetNames : undefined,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
