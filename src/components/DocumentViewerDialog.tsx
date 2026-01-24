@@ -41,7 +41,11 @@ export function DocumentViewerDialog({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [textContent, setTextContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const isDocx = document?.file_type?.toLowerCase() === 'docx' || 
+                 document?.file_type?.toLowerCase() === 'doc';
 
   useEffect(() => {
     if (open && document) {
@@ -52,6 +56,7 @@ export function DocumentViewerDialog({
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
       }
+      setTextContent(null);
       setError(null);
     }
     
@@ -74,14 +79,31 @@ export function DocumentViewerDialog({
     setError(null);
 
     try {
-      const { data, error: downloadError } = await supabase.storage
-        .from('documents')
-        .download(document.file_path);
+      // For Word documents, use the preview-document function to extract text
+      if (isDocx) {
+        const { data: responseData, error: fnError } = await supabase.functions.invoke('preview-document', {
+          body: {
+            bucket: 'documents',
+            path: document.file_path,
+            filename: document.filename
+          }
+        });
 
-      if (downloadError) throw downloadError;
+        if (fnError) throw fnError;
+        if (responseData?.error) throw new Error(responseData.error);
 
-      const url = URL.createObjectURL(data);
-      setPreviewUrl(url);
+        setTextContent(responseData.fullContent || responseData.contentPreview || 'לא נמצא תוכן');
+      } else {
+        // For other files, download and create blob URL
+        const { data, error: downloadError } = await supabase.storage
+          .from('documents')
+          .download(document.file_path);
+
+        if (downloadError) throw downloadError;
+
+        const url = URL.createObjectURL(data);
+        setPreviewUrl(url);
+      }
     } catch (err) {
       console.error('Error loading document preview:', err);
       setError('לא ניתן לטעון את המסמך לתצוגה מקדימה');
@@ -132,6 +154,7 @@ export function DocumentViewerDialog({
   const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(
     document?.file_type?.toLowerCase() || ''
   );
+  const isWord = isDocx;
 
   if (!document) return null;
 
@@ -227,6 +250,12 @@ export function DocumentViewerDialog({
                 className="max-w-full max-h-full object-contain"
               />
             </div>
+          ) : isWord && textContent ? (
+            <ScrollArea className="h-full">
+              <div className="p-6 whitespace-pre-wrap text-sm leading-relaxed" dir="auto">
+                {textContent}
+              </div>
+            </ScrollArea>
           ) : previewUrl ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
               <FileType className="h-16 w-16 text-muted-foreground" />
