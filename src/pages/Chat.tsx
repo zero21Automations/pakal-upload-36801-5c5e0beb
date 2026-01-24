@@ -270,7 +270,7 @@ const Chat = () => {
         throw new Error('Failed to initialize reader');
       }
 
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder('utf-8');
       let buffer = '';
       let receivedMetadata: any = null;
       let fullContent = '';
@@ -278,7 +278,32 @@ const Chat = () => {
       // Single loop to process the stream
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          // Process any remaining buffer content before exiting
+          if (buffer.trim()) {
+            const remainingLines = buffer.split('\n');
+            for (const line of remainingLines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.type === 'content') {
+                    fullContent += parsed.content;
+                    setMessages(prev => prev.map(msg => 
+                      msg.id === assistantMessageId
+                        ? { ...msg, content: fullContent }
+                        : msg
+                    ));
+                  }
+                } catch (e) {
+                  // Skip malformed JSON
+                }
+              }
+            }
+          }
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
