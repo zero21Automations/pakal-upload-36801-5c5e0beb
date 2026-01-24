@@ -124,6 +124,30 @@ serve(async (req) => {
       );
     }
 
+    // Get source titles from documents and core_documents tables
+    const documentSourceIds = chunks?.filter(c => c.source_type === 'document').map(c => c.source_id) || [];
+    const coreDocSourceIds = chunks?.filter(c => c.source_type === 'core_document').map(c => c.source_id) || [];
+
+    // Fetch document titles
+    let documentTitles: Record<string, string> = {};
+    if (documentSourceIds.length > 0) {
+      const { data: docs } = await supabase
+        .from('documents')
+        .select('id, title')
+        .in('id', documentSourceIds);
+      docs?.forEach(d => { documentTitles[d.id] = d.title; });
+    }
+
+    // Fetch core document titles
+    let coreDocTitles: Record<string, string> = {};
+    if (coreDocSourceIds.length > 0) {
+      const { data: coreDocs } = await supabase
+        .from('core_documents')
+        .select('id, title')
+        .in('id', coreDocSourceIds);
+      coreDocs?.forEach(d => { coreDocTitles[d.id] = d.title; });
+    }
+
     if (!chunks || chunks.length === 0) {
       console.log('No chunks found for search criteria');
       return new Response(
@@ -163,8 +187,13 @@ serve(async (req) => {
 
         const boosted_score = similarity + levelBoost;
 
-        // Get source title from metadata (for core docs) or documents table
-        const source_title = chunk.metadata?.title || chunk.documents?.title || 'Unknown';
+        // Get source title from fetched document data
+        let source_title = chunk.metadata?.title || 'Unknown';
+        if (chunk.source_type === 'document' && documentTitles[chunk.source_id]) {
+          source_title = documentTitles[chunk.source_id];
+        } else if (chunk.source_type === 'core_document' && coreDocTitles[chunk.source_id]) {
+          source_title = coreDocTitles[chunk.source_id];
+        }
 
         return {
           chunk_id: chunk.id,

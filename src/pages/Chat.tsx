@@ -196,8 +196,9 @@ const Chat = () => {
           },
           body: JSON.stringify({
             message: messageContent,
-            org_id: user?.id || 'temp-org-id',
-            unit_id: 'temp-unit-id',
+            org_id: profile?.org_id || 'default-org',
+            unit_id: profile?.unit_id || undefined,
+            user_id: user?.id,
             mode: 'knowledge',
             level_weights: levelWeights,
             user_role: role,
