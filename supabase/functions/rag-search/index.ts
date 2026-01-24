@@ -200,14 +200,31 @@ serve(async (req) => {
     const scoredResults: (SearchResult & { similarity: number; boosted_score: number })[] = finalChunks
       .map(chunk => {
         // Calculate cosine similarity
-        const chunkEmbedding = chunk.embedding;
+        // The embedding comes from DB as a string like "[0.1, 0.2, ...]" - need to parse it
+        let chunkEmbedding: number[] | null = null;
+        
+        if (chunk.embedding) {
+          try {
+            if (typeof chunk.embedding === 'string') {
+              // Parse the vector string format from Postgres
+              chunkEmbedding = JSON.parse(chunk.embedding);
+            } else if (Array.isArray(chunk.embedding)) {
+              chunkEmbedding = chunk.embedding;
+            }
+          } catch (e) {
+            console.error('Failed to parse embedding for chunk:', chunk.id, e);
+          }
+        }
+        
         let similarity = 0;
         
-        if (chunkEmbedding && Array.isArray(chunkEmbedding)) {
-          const dotProduct = queryEmbedding.reduce((sum, val, i) => sum + val * chunkEmbedding[i], 0);
+        if (chunkEmbedding && Array.isArray(chunkEmbedding) && chunkEmbedding.length === queryEmbedding.length) {
+          const dotProduct = queryEmbedding.reduce((sum, val, i) => sum + val * chunkEmbedding![i], 0);
           const queryMagnitude = Math.sqrt(queryEmbedding.reduce((sum, val) => sum + val * val, 0));
           const chunkMagnitude = Math.sqrt(chunkEmbedding.reduce((sum, val) => sum + val * val, 0));
-          similarity = dotProduct / (queryMagnitude * chunkMagnitude);
+          if (queryMagnitude > 0 && chunkMagnitude > 0) {
+            similarity = dotProduct / (queryMagnitude * chunkMagnitude);
+          }
         }
 
         // Apply level-based boosting with Core (level 0) as highest
@@ -241,8 +258,8 @@ serve(async (req) => {
           boosted_score
         };
       })
-      // Filter out very low similarity results (noise)
-      .filter(r => r.similarity > 0.3)
+      // Filter out low similarity results - use 0.2 threshold to be more inclusive
+      .filter(r => r.similarity > 0.2)
       // Sort by boosted score (descending)
       .sort((a, b) => b.boosted_score - a.boosted_score)
       // Take top_k results
