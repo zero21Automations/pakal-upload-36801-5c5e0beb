@@ -11,7 +11,8 @@ import {
   TrendingUp,
   FileText,
   Clock,
-  MessageSquare
+  MessageSquare,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +30,10 @@ interface ChatModeHeaderProps {
 const modeConfig = {
   insights: {
     icon: MessageSquare,
-    label: "צ'אט מנהל",
-    color: "text-success",
-    bgColor: "bg-success/10",
-    description: "כלים אנליטיים מתקדמים לניהול ידע"
+    label: "פק״ל - מאגר הידע",
+    color: "text-primary",
+    bgColor: "bg-primary/10",
+    description: "שאל אותי על מנהיגות, לכידות ועבודת מטה"
   }
 };
 
@@ -54,11 +55,12 @@ export const ChatModeHeader = ({
       {/* Main Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Sparkles className="h-7 w-7 text-primary" />
+          </div>
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <MessageSquare className="h-8 w-8 text-primary" />
-              <h1 className="text-3xl font-bold text-foreground">צ׳אט מנהל</h1>
-            </div>
+            <h1 className="text-2xl font-bold text-foreground">פק״ל - מאגר הידע</h1>
+            <p className="text-sm text-muted-foreground">שאל אותי על מנהיגות, לכידות ועבודת מטה</p>
           </div>
         </div>
 
