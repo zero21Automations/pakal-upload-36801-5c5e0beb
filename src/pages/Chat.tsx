@@ -435,173 +435,48 @@ const Chat = () => {
         <div className="flex justify-between items-center mb-6" dir="rtl">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <MessageSquare className="h-8 w-8 text-primary" />
-              <h1 className="text-3xl font-bold text-foreground">צ'אט פק"ל</h1>
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Sparkles className="h-7 w-7 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">פק״ל - מאגר הידע</h1>
+                <p className="text-sm text-muted-foreground">
+                  {role ? `שלום, ${ROLE_LABELS[role]}` : 'שאל אותי על מנהיגות, לכידות ועבודת מטה'}
+                </p>
+              </div>
             </div>
-            <p className="text-muted-foreground">
-              {role ? ROLE_LABELS[role] : 'העוזר הדיגיטלי למערכת הידע של פק״ל'}
-            </p>
           </div>
           
           <div className="flex items-center gap-2">
             {role && (
-              <Badge variant="secondary" className="gap-1">
+              <Badge variant="secondary" className="gap-1 py-1">
                 <User className="h-3 w-3" />
                 {ROLE_LABELS[role]}
               </Badge>
             )}
-            <Badge variant="outline" className="gap-1">
-              <Bot className="h-3 w-3" />
-              מצב תובנות
-            </Badge>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => setShowConversations(!showConversations)}
+              className="text-muted-foreground hover:text-foreground"
             >
               {showConversations ? (
-                <>
-                  <PanelLeftClose className="h-4 w-4 ml-1" />
-                  הסתר היסטוריה
-                </>
+                <PanelLeftClose className="h-4 w-4" />
               ) : (
-                <>
-                  <PanelLeft className="h-4 w-4 ml-1" />
-                  הצג היסטוריה
-                </>
+                <PanelLeft className="h-4 w-4" />
               )}
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <SlidersHorizontal className="h-4 w-4 ml-1" />
-              רמות
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowContentFilters(!showContentFilters)}
-            >
-              <SlidersHorizontal className="h-4 w-4 ml-1" />
-              סינון תוכן
-            </Button>
-            <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => setShowCitations(!showCitations)}
+              className="text-muted-foreground hover:text-foreground"
             >
-              <FileSearch className="h-4 w-4 ml-1" />
-              {showCitations ? 'הסתר' : 'הצג'} מקורות
+              <FileSearch className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {showFilters && (
-          <Card className="mb-6 p-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">עדיפות רמות מסמכים</h3>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setLevelWeights({ Core: 0.50, L1: 0.20, L2: 0.08, L3: 0.00 })}
-                  >
-                    ברירת מחדל
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setLevelWeights({ Core: 0.30, L1: 0.30, L2: 0.30, L3: 0.10 })}
-                  >
-                    איזון שווה
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-sm font-medium">מסמך ליבה (Core)</label>
-                    <Badge variant="secondary" className="font-mono text-xs">
-                      {levelWeights.Core.toFixed(2)}
-                    </Badge>
-                  </div>
-                  <Slider
-                    value={[levelWeights.Core]}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, Core: value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-sm font-medium">רמה 1 (L1)</label>
-                    <Badge variant="secondary" className="font-mono text-xs">
-                      {levelWeights.L1.toFixed(2)}
-                    </Badge>
-                  </div>
-                  <Slider
-                    value={[levelWeights.L1]}
-                    min={0}
-                    max={0.5}
-                    step={0.01}
-                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, L1: value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-sm font-medium">רמה 2 (L2)</label>
-                    <Badge variant="secondary" className="font-mono text-xs">
-                      {levelWeights.L2.toFixed(2)}
-                    </Badge>
-                  </div>
-                  <Slider
-                    value={[levelWeights.L2]}
-                    min={0}
-                    max={0.3}
-                    step={0.01}
-                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, L2: value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-sm font-medium">רמה 3 (L3)</label>
-                    <Badge variant="secondary" className="font-mono text-xs">
-                      {levelWeights.L3.toFixed(2)}
-                    </Badge>
-                  </div>
-                  <Slider
-                    value={[levelWeights.L3]}
-                    min={0}
-                    max={0.2}
-                    step={0.01}
-                    onValueChange={([value]) => setLevelWeights(prev => ({ ...prev, L3: value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="text-xs text-muted-foreground pt-2">
-                <span className="font-medium">משמעות:</span> ערכים גבוהים יותר נותנים עדיפות למסמכים מרמה זו בתוצאות החיפוש
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {showContentFilters && (
-          <div className="mb-6">
-            <ContentFilters
-              currentFilters={contentFilters}
-              onFiltersChange={setContentFilters}
-            />
-          </div>
-        )}
 
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
