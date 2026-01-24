@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message, org_id, unit_id, mode = 'insights', level_weights, user_role = null, content_filters, generate_toolkit } = await req.json();
+    const { message, org_id, unit_id, user_id, mode = 'insights', level_weights, user_role = null, content_filters, generate_toolkit } = await req.json();
 
     if (!message || !org_id) {
       return new Response(
@@ -222,28 +222,36 @@ serve(async (req) => {
             // Store in database after streaming completes
             const chatTurnId = `chat_${new Date().toISOString().split('T')[0]}_${Math.random().toString(36).substr(2, 4)}`;
             
-            await supabaseClient.from('chat_turns').insert({
-              id: chatTurnId,
-              org_id,
-              unit_id,
-              user_id: org_id,
-              question: message,
-              answer: fullMessage,
-              mode,
-              retrieval_meta: searchMetadata
-            });
+            // Only insert chat_turns if we have a valid user_id (UUID)
+            if (user_id) {
+              try {
+                await supabaseClient.from('chat_turns').insert({
+                  id: chatTurnId,
+                  org_id,
+                  unit_id,
+                  user_id,
+                  question: message,
+                  answer: fullMessage,
+                  mode,
+                  retrieval_meta: searchMetadata
+                });
 
-            if (citations.length > 0) {
-              const citationInserts = citations.map(citation => ({
-                turn_id: chatTurnId,
-                source_id: citation.source_id,
-                chunk_id: citation.chunk_id,
-                level: citation.level,
-                confidence: citation.confidence,
-                excerpt: citation.excerpt
-              }));
-              await supabaseClient.from('citations').insert(citationInserts);
+                if (citations.length > 0) {
+                  const citationInserts = citations.map(citation => ({
+                    turn_id: chatTurnId,
+                    source_id: citation.source_id,
+                    chunk_id: citation.chunk_id,
+                    level: citation.level,
+                    confidence: citation.confidence,
+                    excerpt: citation.excerpt
+                  }));
+                  await supabaseClient.from('citations').insert(citationInserts);
+                }
+              } catch (dbError) {
+                console.warn('Failed to store chat turn:', dbError);
+              }
             }
+
 
             // Send done signal
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));

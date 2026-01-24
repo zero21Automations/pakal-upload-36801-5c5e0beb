@@ -52,6 +52,42 @@ export type Database = {
           },
         ]
       }
+      chat_turns: {
+        Row: {
+          answer: string
+          created_at: string | null
+          id: string
+          mode: string | null
+          org_id: string
+          question: string
+          retrieval_meta: Json | null
+          unit_id: string | null
+          user_id: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string | null
+          id: string
+          mode?: string | null
+          org_id: string
+          question: string
+          retrieval_meta?: Json | null
+          unit_id?: string | null
+          user_id: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string | null
+          id?: string
+          mode?: string | null
+          org_id?: string
+          question?: string
+          retrieval_meta?: Json | null
+          unit_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       chunks: {
         Row: {
           content: string
@@ -120,6 +156,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      citations: {
+        Row: {
+          chunk_id: string
+          confidence: number | null
+          created_at: string | null
+          excerpt: string | null
+          id: string
+          level: number | null
+          source_id: string
+          turn_id: string | null
+        }
+        Insert: {
+          chunk_id: string
+          confidence?: number | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          level?: number | null
+          source_id: string
+          turn_id?: string | null
+        }
+        Update: {
+          chunk_id?: string
+          confidence?: number | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          level?: number | null
+          source_id?: string
+          turn_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "citations_turn_id_fkey"
+            columns: ["turn_id"]
+            isOneToOne: false
+            referencedRelation: "chat_turns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversations: {
         Row: {
