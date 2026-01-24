@@ -164,8 +164,15 @@ export function useConversation() {
           };
 
           setMessages(prev => {
-            // Avoid duplicates
-            if (prev.some(msg => msg.id === newMessage.id)) {
+            // Avoid duplicates - check by ID or by content+isUser+recent timestamp
+            const isDuplicate = prev.some(msg => 
+              msg.id === newMessage.id || 
+              (msg.content === newMessage.content && 
+               msg.isUser === newMessage.isUser &&
+               Math.abs(msg.timestamp.getTime() - newMessage.timestamp.getTime()) < 5000)
+            );
+            
+            if (isDuplicate) {
               return prev;
             }
             return [...prev, newMessage];
