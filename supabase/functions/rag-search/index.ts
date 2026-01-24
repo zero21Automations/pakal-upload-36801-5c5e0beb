@@ -52,9 +52,9 @@ serve(async (req) => {
 
     console.log(`RAG Search - Query: "${query}", Org: ${org_id}, Mode: ${mode}`);
 
-    if (!query || !org_id) {
+    if (!query) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: query, org_id' }),
+        JSON.stringify({ error: 'Missing required field: query' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -85,15 +85,15 @@ serve(async (req) => {
     }
 
     // Build status filter based on mode
-    let statusFilter = ['מאושר']; // approved only by default
+    let statusFilter = ['approved', 'מאושר']; // approved only by default (both English and Hebrew)
     if (mode === 'sandbox' && include_drafts) {
-      statusFilter = ['מאושר', 'ממתין לאישור', 'טיוטה'];
+      statusFilter = ['approved', 'מאושר', 'ממתין לאישור', 'טיוטה', 'pending'];
     } else if (mode === 'insights') {
-      statusFilter = ['מאושר', 'ממתין לאישור']; // admins can see pending
+      statusFilter = ['approved', 'מאושר', 'ממתין לאישור', 'pending']; // admins can see pending
     }
 
     // Perform hybrid search with vector similarity and metadata filtering
-    // Search both regular documents and core documents
+    // First try with org_id, then fallback to all chunks if no results
     let searchQuery = supabase
       .from('chunks')
       .select(`
@@ -104,9 +104,14 @@ serve(async (req) => {
         level,
         metadata,
         embedding,
-        status
-      `)
-      .eq('org_id', org_id);
+        status,
+        org_id
+      `);
+
+    // Only filter by org_id if provided and not 'default-org'
+    if (org_id && org_id !== 'default-org') {
+      searchQuery = searchQuery.eq('org_id', org_id);
+    }
 
     // Add unit filter if specified
     if (unit_id) {
@@ -124,9 +129,35 @@ serve(async (req) => {
       );
     }
 
+    console.log(`RAG Search - Found ${chunks?.length || 0} total chunks in database`);
+
+    // If no chunks found with org_id filter, try without it
+    let finalChunks = chunks;
+    if ((!chunks || chunks.length === 0) && org_id && org_id !== 'default-org') {
+      console.log('No chunks found with org_id filter, trying without filter...');
+      const { data: allChunks, error: allError } = await supabase
+        .from('chunks')
+        .select(`
+          id,
+          source_id,
+          source_type,
+          content,
+          level,
+          metadata,
+          embedding,
+          status,
+          org_id
+        `);
+      
+      if (!allError && allChunks && allChunks.length > 0) {
+        console.log(`Found ${allChunks.length} chunks without org_id filter`);
+        finalChunks = allChunks;
+      }
+    }
+
     // Get source titles from documents and core_documents tables
-    const documentSourceIds = chunks?.filter(c => c.source_type === 'document').map(c => c.source_id) || [];
-    const coreDocSourceIds = chunks?.filter(c => c.source_type === 'core_document').map(c => c.source_id) || [];
+    const documentSourceIds = finalChunks?.filter(c => c.source_type === 'document').map(c => c.source_id) || [];
+    const coreDocSourceIds = finalChunks?.filter(c => c.source_type === 'core_document').map(c => c.source_id) || [];
 
     // Fetch document titles
     let documentTitles: Record<string, string> = {};
@@ -148,8 +179,8 @@ serve(async (req) => {
       coreDocs?.forEach(d => { coreDocTitles[d.id] = d.title; });
     }
 
-    if (!chunks || chunks.length === 0) {
-      console.log('No chunks found for search criteria');
+    if (!finalChunks || finalChunks.length === 0) {
+      console.log('No chunks found for search criteria after fallback');
       return new Response(
         JSON.stringify({ 
           results: [], 
@@ -157,7 +188,8 @@ serve(async (req) => {
             total_found: 0, 
             query_embedding_generated: true,
             search_mode: mode,
-            status_filter: statusFilter
+            status_filter: statusFilter,
+            org_id_used: org_id
           } 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -165,7 +197,7 @@ serve(async (req) => {
     }
 
     // Calculate semantic similarity and apply level boosting
-    const scoredResults: (SearchResult & { similarity: number; boosted_score: number })[] = chunks
+    const scoredResults: (SearchResult & { similarity: number; boosted_score: number })[] = finalChunks
       .map(chunk => {
         // Calculate cosine similarity
         const chunkEmbedding = chunk.embedding;
@@ -188,7 +220,7 @@ serve(async (req) => {
         const boosted_score = similarity + levelBoost;
 
         // Get source title from fetched document data
-        let source_title = chunk.metadata?.title || 'Unknown';
+        let source_title = chunk.metadata?.title || 'מסמך';
         if (chunk.source_type === 'document' && documentTitles[chunk.source_id]) {
           source_title = documentTitles[chunk.source_id];
         } else if (chunk.source_type === 'core_document' && coreDocTitles[chunk.source_id]) {
@@ -209,6 +241,8 @@ serve(async (req) => {
           boosted_score
         };
       })
+      // Filter out very low similarity results (noise)
+      .filter(r => r.similarity > 0.3)
       // Sort by boosted score (descending)
       .sort((a, b) => b.boosted_score - a.boosted_score)
       // Take top_k results
@@ -245,10 +279,12 @@ serve(async (req) => {
 
     const hasCore = levelDistribution.Core > 0;
     const hasL1 = levelDistribution.L1 > 0;
-    const avgConfidence = diversityFiltered.reduce((sum, r) => sum + r.confidence, 0) / diversityFiltered.length;
+    const avgConfidence = diversityFiltered.length > 0 
+      ? diversityFiltered.reduce((sum, r) => sum + r.confidence, 0) / diversityFiltered.length
+      : 0;
 
     const responseMetadata = {
-      total_found: chunks.length,
+      total_found: finalChunks.length,
       returned: diversityFiltered.length,
       search_mode: mode,
       level_distribution: levelDistribution,
@@ -258,10 +294,11 @@ serve(async (req) => {
       level_weights_applied: level_weights,
       status_filter: statusFilter,
       diversity_applied: true,
-      query_embedding_generated: true
+      query_embedding_generated: true,
+      org_id_used: org_id
     };
 
-    console.log(`RAG Search completed - Found: ${chunks.length}, Returned: ${diversityFiltered.length}, L1: ${levelDistribution.L1}, L2: ${levelDistribution.L2}, L3: ${levelDistribution.L3}`);
+    console.log(`RAG Search completed - Found: ${finalChunks.length}, Returned: ${diversityFiltered.length}, Core: ${levelDistribution.Core}, L1: ${levelDistribution.L1}, L2: ${levelDistribution.L2}, L3: ${levelDistribution.L3}`);
 
     return new Response(
       JSON.stringify({

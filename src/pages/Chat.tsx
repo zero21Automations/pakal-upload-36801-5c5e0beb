@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,11 +19,11 @@ import { ConversationsList } from "@/components/chat/ConversationsList";
 import { ChatMessage as ChatMessageComponent } from "@/components/chat/ChatMessage";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { SuggestedQuestions } from "@/components/chat/SuggestedQuestions";
 import { ROLE_LABELS } from "@/types/roles";
 import { ChunkMetadata } from "@/types/content";
-import { Message } from "@/types/chat";
+import { Message, Source } from "@/types/chat";
 import { 
-  Send, 
   MessageSquare, 
   Bot,
   User,
@@ -68,6 +69,7 @@ interface Citation {
 
 const Chat = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { profile, role, loading: roleLoading, needsOnboarding } = useUserRole();
   const { 
@@ -99,6 +101,45 @@ const Chat = () => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [typingState, setTypingState] = useState<'typing' | 'searching' | 'analyzing' | 'generating'>('searching');
   const [lastUserMessageIndex, setLastUserMessageIndex] = useState<number | null>(null);
+  const [resolvedOrgId, setResolvedOrgId] = useState<string | null>(null);
+
+  // Resolve actual org_id from chunks table on mount
+  useEffect(() => {
+    const resolveOrgId = async () => {
+      // First try from profile
+      if (profile?.org_id) {
+        setResolvedOrgId(profile.org_id);
+        return;
+      }
+      
+      // Fallback: query the chunks table to find the actual org_id in use
+      const { data: chunks } = await supabase
+        .from('chunks')
+        .select('org_id')
+        .limit(1);
+      
+      if (chunks && chunks.length > 0 && chunks[0].org_id) {
+        setResolvedOrgId(chunks[0].org_id);
+        console.log('Resolved org_id from chunks:', chunks[0].org_id);
+      } else {
+        // Ultimate fallback
+        setResolvedOrgId('default-org');
+      }
+    };
+
+    resolveOrgId();
+  }, [profile?.org_id]);
+
+  // Helper to convert numeric level to Source level type
+  const mapLevelToSourceLevel = (level: number): Source['level'] => {
+    switch (level) {
+      case 0: return 'org-core';
+      case 1: return 'L1';
+      case 2: return 'L2';
+      case 3: return 'L3';
+      default: return 'L1';
+    }
+  };
 
   // Auto-scroll to bottom when new messages are added
   const scrollToBottom = () => {
@@ -185,6 +226,9 @@ const Chat = () => {
     };
     setMessages(prev => [...prev, assistantMessage]);
 
+    // Track for regeneration
+    setLastUserMessageIndex(messages.length);
+
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/insights-chat`,
@@ -196,10 +240,10 @@ const Chat = () => {
           },
           body: JSON.stringify({
             message: messageContent,
-            org_id: profile?.org_id || 'default-org',
+            org_id: resolvedOrgId || profile?.org_id || 'default-org',
             unit_id: profile?.unit_id || undefined,
             user_id: user?.id,
-            mode: 'knowledge',
+            mode: 'insights',
             level_weights: levelWeights,
             user_role: role,
             content_filters: contentFilters
@@ -341,11 +385,12 @@ const Chat = () => {
   };
 
   const handleViewSource = (sourceId: string) => {
+    // Navigate to knowledge management page with the document selected
+    navigate(`/knowledge-management?doc=${sourceId}`);
     toast({
       title: "פתיחת מקור",
-      description: `פותח מסמך ${sourceId}`,
+      description: "מעביר לניהול ידע לצפייה במסמך",
     });
-    // In production, navigate to document viewer
   };
 
   const getMetadataDisplay = (metadata: ChatMessage['metadata']) => {
@@ -585,9 +630,14 @@ const Chat = () => {
                           content: message.content,
                           sender: message.isUser ? 'user' : 'bot',
                           timestamp: message.timestamp,
-                          sources: []
+                          sources: (message.citations || []).map(c => ({
+                            id: c.source_id,
+                            title: c.title,
+                            level: mapLevelToSourceLevel(c.level),
+                            status: 'approved' as const
+                          }))
                         }}
-                        onRegenerate={!message.isUser && lastUserMessageIndex !== null && index === lastUserMessageIndex + 1 
+                        onRegenerate={!message.isUser && index > 0 && messages[index - 1]?.isUser
                           ? () => handleRegenerateMessage(index)
                           : undefined
                         }
@@ -615,7 +665,7 @@ const Chat = () => {
                 
                 <Separator />
                 
-                <div className="p-4">
+                <div className="p-4 space-y-4">
                   <ChatInput
                     value={inputValue}
                     onChange={setInputValue}
@@ -624,9 +674,16 @@ const Chat = () => {
                     mode="insights"
                   />
                   
+                  {/* Role-based Suggested Questions */}
+                  {role && messages.length <= 1 && (
+                    <SuggestedQuestions 
+                      role={role} 
+                      onQuestionClick={handleQuickAction}
+                    />
+                  )}
                   
-                  {/* Quick Actions - Fallback for managers */}
-                  {!role && (
+                  {/* Quick Actions - Fallback when no role selected */}
+                  {!role && messages.length <= 1 && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <TrendingUp className="h-4 w-4" />
@@ -677,12 +734,6 @@ const Chat = () => {
                         <span>זיהוי סתירות</span>
                       </Button>
                     </div>
-                    </div>
-                  )}
-                  
-                  {role && (
-                    <div className="text-xs text-muted-foreground text-center">
-                      או הקלד שאלה מותאמת אישית למעלה
                     </div>
                   )}
                 </div>
