@@ -170,10 +170,28 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Lovable AI error:', errorData);
+        // Handle error response - it might not be valid JSON
+        let errorMessage = 'שגיאה ביצירת תשובה';
+        let errorDetails = '';
+        
+        try {
+          const errorText = await response.text();
+          console.error('AI API error response:', errorText);
+          
+          // Try to parse as JSON if possible
+          try {
+            const errorData = JSON.parse(errorText);
+            errorDetails = errorData.error?.message || errorData.message || errorText;
+          } catch {
+            errorDetails = errorText;
+          }
+        } catch (e) {
+          console.error('Failed to read error response:', e);
+          errorDetails = `HTTP ${response.status}`;
+        }
+        
         return new Response(
-          JSON.stringify({ error: 'שגיאה ביצירת תשובה', details: errorData.error?.message }),
+          JSON.stringify({ error: errorMessage, details: errorDetails }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
