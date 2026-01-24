@@ -51,7 +51,7 @@ export const Navigation = () => {
             <Button variant="ghost" size="sm" className="gap-2" asChild>
               <Link to="/chat">
                 <MessageSquare className="h-4 w-4" />
-                צ'אט מנהל
+                מאגר הידע
               </Link>
             </Button>
             <Button variant="ghost" size="sm" className="gap-2" asChild>
