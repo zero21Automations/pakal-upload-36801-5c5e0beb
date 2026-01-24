@@ -500,7 +500,7 @@ const Chat = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  צ'אט תובנות פק״ל
+                  שיחה
                 </CardTitle>
               </CardHeader>
               
@@ -571,52 +571,52 @@ const Chat = () => {
                   {!role && messages.length <= 1 && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <TrendingUp className="h-4 w-4" />
-                        <span>פעולות מהירות:</span>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>שאלות לדוגמה:</span>
                       </div>
                     <div className="grid grid-cols-2 gap-2" dir="rtl">
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-12 flex flex-col gap-1 text-xs"
-                        onClick={() => handleQuickAction('הראה לי פערי ידע בחודש האחרון')}
+                        onClick={() => handleQuickAction('מה התפקיד של קצין לכידות?')}
                         disabled={isLoading}
                       >
-                        <AlertCircle className="h-4 w-4" />
-                        <span>פערי ידע</span>
+                        <User className="h-4 w-4" />
+                        <span>תפקיד קצין לכידות</span>
                       </Button>
                       
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-12 flex flex-col gap-1 text-xs"
-                        onClick={() => handleQuickAction('נתח שימוש במסמכים')}
+                        onClick={() => handleQuickAction('איך בונים לכידות ביחידה?')}
                         disabled={isLoading}
                       >
-                        <FileSearch className="h-4 w-4" />
-                        <span>ניתוח שימוש</span>
+                        <Sparkles className="h-4 w-4" />
+                        <span>בניית לכידות</span>
                       </Button>
                       
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-12 flex flex-col gap-1 text-xs"
-                        onClick={() => handleQuickAction('מה השפעת אישור הטיוטות הממתינות?')}
+                        onClick={() => handleQuickAction('מהם עקרונות המנהיגות הצבאית?')}
                         disabled={isLoading}
                       >
-                        <CheckCircle2 className="h-4 w-4" />
-                        <span>השפעת אישורים</span>
+                        <TrendingUp className="h-4 w-4" />
+                        <span>מנהיגות צבאית</span>
                       </Button>
                       
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-12 flex flex-col gap-1 text-xs"
-                        onClick={() => handleQuickAction('זהה סתירות בין מסמכי ליבה')}
+                        onClick={() => handleQuickAction('איך מנהלים שיחת משוב אפקטיבית?')}
                         disabled={isLoading}
                       >
-                        <AlertCircle className="h-4 w-4" />
-                        <span>זיהוי סתירות</span>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>שיחות משוב</span>
                       </Button>
                     </div>
                     </div>
