@@ -2,7 +2,7 @@ import { Message, Source } from "@/types/chat";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { User, Bot, Clock, Copy, Check, RotateCcw, FileText, BookOpen, Wrench, GraduationCap } from "lucide-react";
+import { User, Bot, Clock, Copy, Check, RotateCcw, FileText, BookOpen, Wrench, GraduationCap, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -309,7 +309,44 @@ export const ChatMessage = ({ message, onRegenerate }: ChatMessageProps) => {
             {/* Level Badges - Show which document levels were used */}
             {!isUser && levelsUsed.length > 0 && (
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-xs text-muted-foreground ml-1">מקורות:</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground">מקורות:</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                        <HelpCircle className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs p-3">
+                      <div className="space-y-2 text-xs" dir="rtl">
+                        <p className="font-semibold text-sm mb-2">היררכיית מסמכים</p>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span className="font-medium">Core</span>
+                          <span className="text-muted-foreground">- דוקטרינה רשמית</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-500" />
+                          <span className="font-medium">L1</span>
+                          <span className="text-muted-foreground">- תוכן מאושר</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          <span className="font-medium">L2</span>
+                          <span className="text-muted-foreground">- כלים ושיטות</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-500" />
+                          <span className="font-medium">L3</span>
+                          <span className="text-muted-foreground">- מחקר ודוגמאות</span>
+                        </div>
+                        <p className="text-muted-foreground pt-1 border-t mt-2">
+                          מסמכים ברמה גבוהה יותר מקבלים עדיפות
+                        </p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 {levelsUsed.map((level) => {
                   const config = getLevelConfig(level);
                   const Icon = config.icon;
