@@ -30,16 +30,21 @@ export const Navigation = () => {
     });
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🔴 Logout clicked');
     try {
+      console.log('🔴 Calling signOut...');
       await signOut();
+      console.log('🔴 SignOut success');
       toast({
         title: "התנתקת בהצלחה",
         description: "להתראות!",
       });
       navigate('/auth');
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('🔴 Logout error:', error);
       toast({
         title: "שגיאה בהתנתקות",
         description: "נסה שוב",
@@ -100,7 +105,7 @@ export const Navigation = () => {
           </div>
 
           {/* User Section */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 relative z-50">
             <Badge variant="outline" className="text-xs">
               אדמין יחידה
             </Badge>
@@ -111,7 +116,8 @@ export const Navigation = () => {
               variant="ghost" 
               size="sm" 
               onClick={handleLogout}
-              className="gap-2 text-muted-foreground hover:text-destructive"
+              className="gap-2 text-muted-foreground hover:text-destructive cursor-pointer relative z-10"
+              type="button"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden lg:inline">התנתק</span>
