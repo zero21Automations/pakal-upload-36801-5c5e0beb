@@ -42,7 +42,8 @@ export const Navigation = () => {
         title: "התנתקת בהצלחה",
         description: "להתראות!",
       });
-      navigate('/auth');
+      // Use window.location to force a full page reload and clear all state
+      window.location.href = '/auth';
     } catch (error) {
       console.error('🔴 Logout error:', error);
       toast({
