@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   Shield, 
   MessageSquare, 
@@ -13,16 +14,26 @@ import {
   LayoutDashboard,
   Crown,
   CheckSquare,
-  Award
+  Award,
+  LogOut
 } from "lucide-react";
 
 export const Navigation = () => {
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   const handleSettings = () => {
     toast({
       title: "הגדרות",
       description: "נפתחו הגדרות המערכת",
+    });
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    toast({
+      title: "התנתקת בהצלחה",
+      description: "להתראות!",
     });
   };
   return (
@@ -85,6 +96,15 @@ export const Navigation = () => {
             <div className="h-8 w-8 rounded-full bg-gradient-primary flex items-center justify-center">
               <span className="text-xs font-semibold text-primary-foreground">מ</span>
             </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleLogout}
+              className="gap-2 text-muted-foreground hover:text-destructive"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden lg:inline">התנתק</span>
+            </Button>
           </div>
         </div>
       </div>
