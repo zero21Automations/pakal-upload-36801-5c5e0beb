@@ -38,12 +38,17 @@ export const Navigation = () => {
       console.log('🔴 Calling signOut...');
       await signOut();
       console.log('🔴 SignOut success');
+      // Clear all local storage to ensure no stale session data
+      localStorage.clear();
+      sessionStorage.clear();
       toast({
         title: "התנתקת בהצלחה",
         description: "להתראות!",
       });
-      // Use window.location to force a full page reload and clear all state
-      window.location.href = '/auth';
+      // Use replace to prevent back button from keeping session
+      setTimeout(() => {
+        window.location.replace('/auth');
+      }, 100);
     } catch (error) {
       console.error('🔴 Logout error:', error);
       toast({
