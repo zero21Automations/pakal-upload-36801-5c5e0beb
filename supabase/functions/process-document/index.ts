@@ -319,15 +319,22 @@ L3 - מחקר והרחבה: מחקרים אקדמיים, דוחות חיצוני
       console.log(`Finished embedding + upsert pipeline. Inserted ${chunksInsertedCount} chunks`);
 
       // Update document with full completion results
+      // Only set document_level if user didn't already select one
+      const updateData: Record<string, unknown> = {
+        processing_status: 'completed',
+        processed_at: new Date().toISOString(),
+        chunks_count: chunksInsertedCount,
+        processing_error: null
+      };
+      
+      // Only use AI classification if no level was set by user
+      if (!document.document_level) {
+        updateData.document_level = classification.level;
+      }
+      
       const { error: updateError } = await supabaseClient
         .from('documents')
-        .update({
-          document_level: classification.level,
-          processing_status: 'completed',
-          processed_at: new Date().toISOString(),
-          chunks_count: chunksInsertedCount,
-          processing_error: null
-        })
+        .update(updateData)
         .eq('id', documentId);
 
       if (updateError) {
