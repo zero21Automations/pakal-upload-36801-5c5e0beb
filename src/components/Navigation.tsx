@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { 
@@ -21,6 +21,7 @@ import {
 export const Navigation = () => {
   const { toast } = useToast();
   const { signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleSettings = () => {
     toast({
@@ -30,11 +31,21 @@ export const Navigation = () => {
   };
 
   const handleLogout = async () => {
-    await signOut();
-    toast({
-      title: "התנתקת בהצלחה",
-      description: "להתראות!",
-    });
+    try {
+      await signOut();
+      toast({
+        title: "התנתקת בהצלחה",
+        description: "להתראות!",
+      });
+      navigate('/auth');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast({
+        title: "שגיאה בהתנתקות",
+        description: "נסה שוב",
+        variant: "destructive",
+      });
+    }
   };
   return (
     <nav className="bg-background/95 backdrop-blur-sm border-b border-border sticky top-0 z-50" dir="rtl">
