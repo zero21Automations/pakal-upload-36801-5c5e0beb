@@ -141,18 +141,35 @@ export function DocumentViewerDialog({
         }
         setTextContent(responseData.fullContent || responseData.contentPreview || 'לא נמצא תוכן');
       } else {
-        // For other files, download and create blob URL
-        const { data, error: downloadError } = await supabase.storage
+        // For other files, create a signed URL and fetch as blob
+        const { data: signed, error: signedError } = await supabase.storage
           .from('documents')
-          .download(document.file_path);
+          .createSignedUrl(document.file_path, 60);
 
-        if (downloadError) throw downloadError;
+        if (signedError || !signed?.signedUrl) {
+          console.error('Preview signed URL error:', {
+            error: signedError,
+            file_path: document.file_path,
+            bucket: 'documents',
+          });
+          throw signedError || new Error('לא ניתן ליצור קישור לקובץ');
+        }
 
-        const url = URL.createObjectURL(data);
+        const response = await fetch(signed.signedUrl);
+        if (!response.ok) {
+          console.error('Preview fetch failed:', response.status, response.statusText);
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
         setPreviewUrl(url);
       }
     } catch (err) {
-      console.error('Error loading document preview:', err);
+      console.error('Error loading document preview:', {
+        error: err,
+        message: err instanceof Error ? err.message : String(err),
+        file_path: document.file_path,
+      });
       setError('לא ניתן לטעון את המסמך לתצוגה מקדימה');
     } finally {
       setLoading(false);
@@ -163,14 +180,28 @@ export function DocumentViewerDialog({
     if (!document) return;
 
     try {
-      const { data, error: downloadError } = await supabase.storage
+      // Create signed URL for download
+      const { data: signed, error: signedError } = await supabase.storage
         .from('documents')
-        .download(document.file_path);
+        .createSignedUrl(document.file_path, 60);
 
-      if (downloadError) throw downloadError;
+      if (signedError || !signed?.signedUrl) {
+        console.error('Download signed URL error:', {
+          error: signedError,
+          file_path: document.file_path,
+          bucket: 'documents',
+        });
+        throw signedError || new Error('לא ניתן ליצור קישור להורדה');
+      }
 
-      // Create download link
-      const url = URL.createObjectURL(data);
+      const response = await fetch(signed.signedUrl);
+      if (!response.ok) {
+        console.error('Download fetch failed:', response.status, response.statusText);
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+
+      const url = URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = url;
       a.download = document.filename;
@@ -183,9 +214,15 @@ export function DocumentViewerDialog({
         title: "המסמך הורד בהצלחה",
       });
     } catch (err) {
-      console.error('Error downloading document:', err);
+      console.error('Error downloading document:', {
+        error: err,
+        message: err instanceof Error ? err.message : String(err),
+        file_path: document.file_path,
+        filename: document.filename,
+      });
       toast({
         title: "שגיאה בהורדת המסמך",
+        description: err instanceof Error ? err.message : undefined,
         variant: "destructive",
       });
     }
