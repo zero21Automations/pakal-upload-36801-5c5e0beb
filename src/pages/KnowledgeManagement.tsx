@@ -121,7 +121,7 @@ export default function KnowledgeManagement() {
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
   
   // Polling interval ref
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Pakal terms state
   const [pakalTerms, setPakalTerms] = useState<PakalTerm[]>([]);
